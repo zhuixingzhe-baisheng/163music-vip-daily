@@ -10,7 +10,6 @@
 | VIP 乐签打卡 | ✅ | VIP 用户每日乐签打卡，获得成长值 |
 | VIP 成长值领取 | ✅ | 自动领取已完成的 VIP 任务成长值 |
 | VIP 音乐任务 | ✅ | 收藏歌曲 + 听歌记录 + 领取成长值 + 取消收藏 |
-| 音乐人任务 | ⏸️ | 音乐人专属任务（暂未启用） |
 
 ### VIP 音乐任务详解
 
@@ -100,7 +99,7 @@ pm2 save
 crontab -e
 
 # 添加定时任务（每天早上 8:00 执行）
-0 8 * * * /usr/bin/node /workspace/auto_tasks_enhanced.js >> /workspace/logs/netease.log 2>&1
+0 8 * * * /usr/bin/node /path/to/auto_tasks_enhanced.js >> /path/to/logs/netease.log 2>&1
 ```
 
 ## 📊 输出示例
@@ -120,28 +119,18 @@ crontab -e
   准备处理 3 首歌曲:
     1. 不分手的恋爱 - 汪苏泷 (3.43 分钟)
     2. 我看过 - 周星星 (2.74 分钟)
-    3. See You Again - Wiz Khalifa,Charlie Puth (3.83 分钟)
   [1] 收藏歌曲...
     ✓ 不分手的恋爱
     ✓ 我看过
-    ✓ See You Again
   [2] 上传听歌记录...
     ✓ 不分手的恋爱 (3.42 分钟)
     ✓ 我看过 (2.73 分钟)
-    ✓ See You Again (3.82 分钟)
   [3] 领取成长值...
     ✓ 领取成功 +3
   [4] 取消收藏...
     ✓ 不分手的恋爱
     ✓ 我看过
-    ✓ See You Again
   ✓ VIP 音乐任务完成
-
-[测试用户] 执行 VIP 乐签打卡...
-[测试用户] ✓ 乐签打卡今日已完成
-[测试用户]   签到日期：2026-05-22
-[测试用户]   获得成长值：+3
-[测试用户]   签到歌曲：1413374550
 ------------------------------------------------------------
 
 ============================================================
@@ -173,8 +162,6 @@ crontab -e
 | `vip_music_tasks_automated.js` | VIP 音乐任务独立脚本（可单独运行） |
 | `package.json` | 项目配置和依赖 |
 | `config_example.json` | 配置文件示例 |
-| `README_ENHANCED.md` | API Enhanced 详细文档 |
-| `VIP_MUSIC_TASK_RECORD.md` | VIP 音乐任务执行记录 |
 
 ## 🔧 高级配置
 
@@ -203,10 +190,6 @@ users: [
 vipMusicPlaylistId: 1234567890  // 替换为你喜欢的 VIP 专属歌单
 ```
 
-推荐歌单：
-- 会员雷达 (8402996200) - 官方 VIP 专属推荐
-- 黑胶专属歌单 (在网易云 APP 中查看)
-
 ## ⚠️ 注意事项
 
 1. **Cookie 安全**: 不要将 Cookie 提交到 Git 仓库或公开分享
@@ -214,13 +197,6 @@ vipMusicPlaylistId: 1234567890  // 替换为你喜欢的 VIP 专属歌单
 3. **任务时效**: VIP 任务可能每天刷新，及时执行脚本
 4. **账号风控**: 多账号建议设置更长的延时时间
 5. **API 稳定性**: 网易云 API 可能变化，如遇问题请更新 API 包
-
-## 📖 参考资料
-
-- **API Enhanced 仓库**: https://github.com/neteasecloudmusicapienhanced/api-enhanced
-- **API Enhanced 文档**: https://github.com/neteasecloudmusicapienhanced/api-enhanced/blob/master/README.md
-- **原 API 项目**: https://github.com/Binaryify/NeteaseCloudMusicApi
-- **VIP 任务分析**: 参见 `网易云_VIP_成长值请求分析.md`
 
 ## 🐛 故障排查
 
@@ -251,28 +227,11 @@ vipMusicPlaylistId: 1234567890  // 替换为你喜欢的 VIP 专属歌单
 - VIP 音乐任务出现时会自动领取（+3 成长值）
 - 等待任务刷新（通常每天 0:00）
 
-### 问题 4: 听歌记录上传失败
+## 📖 参考资料
 
-**症状**: 显示"上传失败"或"scrobble error"
-
-**解决**:
-1. 检查网络连接
-2. 稍后重试
-3. 歌曲可能已下架，使用其他歌单
-
-## 📝 更新日志
-
-### v2.0 (2026-05-22)
-- ✅ 集成 VIP 音乐任务（收藏 + 听歌 + 领取 + 取消）
-- ✅ 从 API 动态获取歌曲（不再使用固定 ID）
-- ✅ 使用实际歌曲时长（从 dt 字段获取）
-- ✅ 自动检测并领取"收藏三首歌曲"任务成长值
-- ✅ 完善错误处理和日志输出
-- ✅ 支持多用户并发处理
-
-### v1.0 (2026-05-22)
-- ✅ 初始版本（基于 API Enhanced）
-- ✅ 云贝签到、VIP 乐签打卡、成长值领取
+- **API Enhanced 仓库**: https://github.com/neteasecloudmusicapienhanced/api-enhanced
+- **API Enhanced 文档**: https://github.com/neteasecloudmusicapienhanced/api-enhanced/blob/master/README.md
+- **npm 包**: https://www.npmjs.com/package/@neteasecloudmusicapienhanced/api
 
 ## 📄 License
 

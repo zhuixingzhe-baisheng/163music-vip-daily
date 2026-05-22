@@ -1,10 +1,6 @@
 # 依赖目录
 node_modules/
 
-# 二进制文件
-Fuck163MusicTasks
-*.tar.gz
-
 # 日志文件
 logs/
 *.log
@@ -14,8 +10,6 @@ logs/
 .pnp.*
 .env.local
 
-# 中文文档（可选，按需删除）
-# *_迁移总结.md
-# *_说明.md
-# *_分析.md
+# 配置文件（包含敏感信息）
+config.json
 

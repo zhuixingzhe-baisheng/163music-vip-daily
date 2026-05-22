@@ -1,0 +1,48 @@
+{
+  "DEBUG": false,
+  "Users": [
+    {
+      "Cookies": [
+        {
+          "Name": "MUSIC_U",
+          "Value": "YOUR_MUSIC_U_HERE"
+        }
+      ]
+    }
+  ],
+  "MusicShareConfig": {
+    "MySongID": 114514
+  },
+  "EventSendConfig": {
+    "LagConfig": {
+      "RandomLag": true,
+      "LagBetweenSendAndDelete": true,
+      "DefaultLag": 60,
+      "LagMin": 30,
+      "LagMax": 120
+    }
+  },
+  "YunbeiSign": false,
+  "VipSign": true,
+  "AutoGetVipGrowthpoint": true,
+  "VipListen": true,
+  "VipPlaylistID": 8402996200,
+  "VipSongLike": true,
+  "VipSongLikeIDs": [123456, 789012],
+  "ShowVipTaskList": false,
+  "Content": [
+    "YOUR_CUSTOM_TEXT_1",
+    "YOUR_CUSTOM_TEXT_2"
+  ],
+  "Cron": {
+    "Enabled": true,
+    "Expression": "0 0 1,13 * * ?",
+    "EnableLag": true,
+    "LagConfig": {
+      "LagMin": 600,
+      "LagMax": 3600
+    }
+  },
+  "PushPlusToken": "",
+  "ServerSendKey": ""
+}

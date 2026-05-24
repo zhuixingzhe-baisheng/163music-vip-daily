@@ -2,11 +2,15 @@
  * 网易云自动任务脚本 - 使用 API Enhanced
  * 
  * 功能:
- * - 云贝签到
+ * - 云贝签到（安卓端 + PC 端）
  * - VIP 乐签打卡
  * - 领取 VIP 成长值
- * - VIP 音乐任务 (收藏 + 听歌 + 取消)
+ * - VIP 音乐任务（收藏 + 听歌 + 取消）
+ * - 自动发布/删除动态（每日分享歌曲）
  */
+
+const fs = require('fs')
+const path = require('path')
 
 const {
   yunbei,
@@ -19,7 +23,9 @@ const {
   vip_info,
   playlist_detail,
   song_like,
-  scrobble
+  scrobble,
+  share_resource,
+  event_del
 } = require('@neteasecloudmusicapienhanced/api')
 
 // 配置
@@ -41,8 +47,17 @@ const config = {
   // VIP 音乐任务
   enableVipMusicTasks: true,       // 是否启用 VIP 音乐任务（收藏 + 听歌 + 取消）
   vipMusicPlaylistId: 8402996200,  // 会员雷达歌单 ID
-  vipMusicSongCount: 3             // 处理的歌曲数量
+  vipMusicSongCount: 3,            // 处理的歌曲数量
+  
+  // 自动发布动态
+  enableAutoPost: true,            // 是否启用自动发布动态
+  deletePreviousPost: true,        // 是否删除上一次的动态
+  postPlaylistId: 8402996200,      // 用于发布动态的歌单 ID
+  postSongCount: 1                 // 每次发布的歌曲数量（1-3）
 }
+
+// 数据记录文件路径
+const dataFilePath = path.join(__dirname, 'user_data.json')
 
 // 主函数
 async function main() {
@@ -172,6 +187,11 @@ async function main() {
         }
       }
       
+      // 自动发布动态
+      if (config.enableAutoPost) {
+        await autoPostEvent(user.cookie, user.nickname)
+      }
+      
       console.log(`[${user.nickname}] ✓ 任务完成`)
       
     } catch (error) {
@@ -298,6 +318,161 @@ async function runVipMusicTasks(cookie, playlistId, songCount) {
   } catch (error) {
     console.log(`  ✗ VIP 音乐任务失败：${error.message}\n`)
   }
+}
+
+// 用户数据管理
+function loadUserData() {
+  try {
+    if (fs.existsSync(dataFilePath)) {
+      const data = fs.readFileSync(dataFilePath, 'utf8')
+      return JSON.parse(data)
+    }
+  } catch (e) {
+    console.log('[数据] 读取用户数据失败:', e.message)
+  }
+  return {}
+}
+
+function saveUserData(data) {
+  try {
+    fs.writeFileSync(dataFilePath, JSON.stringify(data, null, 2), 'utf8')
+    return true
+  } catch (e) {
+    console.log('[数据] 保存用户数据失败:', e.message)
+    return false
+  }
+}
+
+function getTodayString() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
+
+// 自动发布/删除动态
+async function autoPostEvent(cookie, nickname) {
+  if (!config.enableAutoPost) return
+
+  console.log(`[${nickname}] 执行自动发布动态...`)
+
+  const userData = loadUserData()
+  const today = getTodayString()
+
+  // 初始化用户数据
+  if (!userData[nickname]) {
+    userData[nickname] = {
+      lastPostDate: null,
+      lastPostId: null,
+      lastPostSongId: null,
+      lastPostSongName: null
+    }
+  }
+
+  const userRecord = userData[nickname]
+
+  // 检查是否需要删除上一次的动态
+  if (config.deletePreviousPost && userRecord.lastPostId) {
+    console.log(`  发现上次动态 (ID: ${userRecord.lastPostId})，准备删除...`)
+    try {
+      const delResult = await event_del({
+        cookie,
+        evId: userRecord.lastPostId
+      })
+
+      if (delResult.body.code === 200) {
+        console.log(`  ✓ 动态已删除 (${userRecord.lastPostSongName || '未知歌曲'})`)
+        userRecord.lastPostId = null
+        userRecord.lastPostSongId = null
+        userRecord.lastPostSongName = null
+      } else {
+        console.log(`  ✗ 删除失败：${delResult.body.message || delResult.body.code}`)
+      }
+    } catch (e) {
+      console.log(`  ✗ 删除异常：${e.message}`)
+    }
+
+    await sleep(1000)
+  }
+
+  // 检查今天是否已发布
+  if (userRecord.lastPostDate === today) {
+    console.log(`  ⊘ 今日 (${today}) 已发布动态，跳过`)
+    console.log(`    上次发布：${userRecord.lastPostSongName || '未知歌曲'}`)
+    saveUserData(userData)
+    return
+  }
+
+  // 获取歌单
+  try {
+    console.log(`  获取歌单 ${config.postPlaylistId}...`)
+    const playlist = await playlist_detail({
+      cookie,
+      id: config.postPlaylistId
+    })
+
+    if (playlist.body.code !== 200) {
+      console.log(`  ✗ 获取歌单失败`)
+      return
+    }
+
+    const playlistData = playlist.body.playlist || playlist.body
+    const tracks = playlistData.tracks || []
+
+    if (tracks.length === 0) {
+      console.log(`  ✗ 歌单为空`)
+      return
+    }
+
+    // 随机选择歌曲
+    const songCount = Math.min(config.postSongCount, tracks.length)
+    const selectedSongs = []
+    const usedIndexes = new Set()
+
+    while (selectedSongs.length < songCount) {
+      const index = Math.floor(Math.random() * tracks.length)
+      if (!usedIndexes.has(index)) {
+        selectedSongs.push(tracks[index])
+        usedIndexes.add(index)
+      }
+    }
+
+    const song = selectedSongs[0]
+    const songId = song.id
+    const songName = `${song.name} - ${song.ar?.[0]?.name || '未知歌手'}`
+
+    console.log(`  选择歌曲：${songName}`)
+
+    // 发布动态
+    console.log(`  发布动态...`)
+    const postResult = await share_resource({
+      cookie,
+      type: 'song',
+      id: songId,
+      msg: `今日推荐：${songName} #网易云音乐`
+    })
+
+    if (postResult.body.code === 200) {
+      const eventId = postResult.body.id || postResult.body.data?.id
+      userRecord.lastPostDate = today
+      userRecord.lastPostId = String(eventId)
+      userRecord.lastPostSongId = String(songId)
+      userRecord.lastPostSongName = songName
+
+      console.log(`  ✓ 动态发布成功`)
+      console.log(`    动态 ID: ${userRecord.lastPostId}`)
+      console.log(`    歌曲：${songName}`)
+      console.log(`    日期：${today}`)
+
+      saveUserData(userData)
+    } else {
+      console.log(`  ✗ 发布失败：${postResult.body.message || postResult.body.code}`)
+    }
+
+    await sleep(1500)
+  } catch (e) {
+    console.log(`  ✗ 发布异常：${e.message}`)
+  }
+
+  saveUserData(userData)
 }
 
 // 错误处理

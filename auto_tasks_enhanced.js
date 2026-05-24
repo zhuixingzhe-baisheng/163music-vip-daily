@@ -10,6 +10,7 @@
 
 const {
   yunbei,
+  yunbei_sign,
   vip_sign,
   vip_sign_info,
   vip_tasks,
@@ -31,15 +32,16 @@ const config = {
     }
   ],
   // 功能开关
-  enableYunbeiSign: true,
-  enableVipSign: true,
-  enableVipGrowthpoint: true,
+  enableYunbeiSign: true,          // 云贝签到（安卓端）
+  enableYunbeiSignPC: true,        // 云贝签到（PC 端）
+  enableVipSign: true,             // VIP 乐签打卡
+  enableVipGrowthpoint: true,      // VIP 成长值领取
   showVipTaskList: true,
   
   // VIP 音乐任务
-  enableVipMusicTasks: true,  // 是否启用 VIP 音乐任务 (收藏 + 听歌 + 取消)
+  enableVipMusicTasks: true,       // 是否启用 VIP 音乐任务（收藏 + 听歌 + 取消）
   vipMusicPlaylistId: 8402996200,  // 会员雷达歌单 ID
-  vipMusicSongCount: 3  // 处理的歌曲数量
+  vipMusicSongCount: 3             // 处理的歌曲数量
 }
 
 // 主函数
@@ -61,11 +63,18 @@ async function main() {
         console.log(`[${user.nickname}] VIP 状态：${hasVip ? '已开通' : '未开通'}`)
       }
       
-      // 云贝签到
+      // 云贝签到（安卓端）
       if (config.enableYunbeiSign) {
-        console.log(`[${user.nickname}] 执行云贝签到...`)
+        console.log(`[${user.nickname}] 执行云贝签到（安卓端）...`)
         const yunbeiResult = await yunbei({ cookie: user.cookie })
-        console.log(`[${user.nickname}] 云贝签到结果:`, yunbeiResult.body)
+        console.log(`[${user.nickname}] 云贝签到（安卓）结果:`, yunbeiResult.body)
+      }
+      
+      // 云贝签到（PC 端）
+      if (config.enableYunbeiSignPC) {
+        console.log(`[${user.nickname}] 执行云贝签到（PC 端）...`)
+        const yunbeiSignResult = await yunbei_sign({ cookie: user.cookie })
+        console.log(`[${user.nickname}] 云贝签到（PC）结果:`, yunbeiSignResult.body)
       }
       
       // VIP 音乐任务

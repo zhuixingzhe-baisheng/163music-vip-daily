@@ -1,0 +1,15 @@
+{
+  "users": [
+    {
+      "cookie": "MUSIC_U=xxxxxxxxxxxxx",
+      "nickname": "你的昵称"
+    }
+  ],
+  "enableYunbeiSign": true,
+  "enableVipSign": true,
+  "enableVipGrowthpoint": true,
+  "showVipTaskList": true,
+  "enableVipMusicTasks": true,
+  "vipMusicPlaylistId": 8402996200,
+  "vipMusicSongCount": 3
+}

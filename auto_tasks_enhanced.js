@@ -219,6 +219,13 @@ function sleep(ms) {
 // VIP 音乐任务函数
 async function runVipMusicTasks(cookie, playlistId, songCount) {
   try {
+    // 先获取用户信息获取 uid
+    const userProfile = await vip_info({ cookie })
+    let userId = ''
+    if (userProfile.body && userProfile.body.data && userProfile.body.data.userId) {
+      userId = userProfile.body.data.userId
+    }
+    
     const playlist = await playlist_detail({ id: playlistId })
     if (playlist.body.code !== 200) {
       console.log(`  ✗ 获取歌单失败`)
@@ -279,6 +286,10 @@ async function runVipMusicTasks(cookie, playlistId, songCount) {
       }
     }
     
+    // 等待 1 分钟，确保听歌记录生效后再取消收藏
+    console.log('  等待 1 分钟，确保听歌记录生效...')
+    await sleep(60000)
+    
     // 3. 检查并领取成长值
     console.log('  [3] 领取成长值...')
     const tasks = await vip_tasks({ cookie })
@@ -304,9 +315,16 @@ async function runVipMusicTasks(cookie, playlistId, songCount) {
     console.log('  [4] 取消收藏...')
     for (const song of songs) {
       try {
-        const result = await song_like({ cookie, id: song.id, like: false })
+        const result = await song_like({ 
+          cookie, 
+          id: song.id, 
+          like: false,
+          uid: userId
+        })
         if (result.body.code === 200) {
           console.log(`    ✓ ${song.name}`)
+        } else {
+          console.log(`    ✗ ${song.name}: 失败 (code: ${result.body.code})`)
         }
         await sleep(1000)
       } catch (e) {

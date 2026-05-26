@@ -4,24 +4,35 @@
 
 ## 使用步骤
 
-### 1. 首次安装
+### 1. 安装依赖
 
 ```bash
-chmod +x setup.sh
-./setup.sh
+npm install
 ```
 
 ### 2. 配置 Cookie
 
-编辑 `auto_tasks_enhanced.js`，替换 Cookie：
+复制配置文件并编辑：
 
 ```bash
-vim auto_tasks_enhanced.js
+cp config_example.json config.json
+vim config.json
 # 或
-nano auto_tasks_enhanced.js
+nano config.json
 ```
 
-找到 `MUSIC_U=xxxxx` 并替换为你的 Cookie。
+在 `config.json` 中填入你的 `MUSIC_U` cookie：
+
+```json
+{
+  "users": [
+    {
+      "nickname": "主账号",
+      "cookie": "MUSIC_U=xxxxxxxxxxxxx"
+    }
+  ]
+}
+```
 
 ### 3. 测试运行
 

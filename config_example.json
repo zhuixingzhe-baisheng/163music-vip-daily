@@ -1,55 +1,20 @@
 {
-  "DEBUG": false,
-  "Users": [
+  "users": [
     {
-      "Cookies": [
-        {
-          "Name": "MUSIC_U",
-          "Value": "USER_1_MUSIC_U"
-        }
-      ]
-    },
-    {
-      "Cookies": [
-        {
-          "Name": "MUSIC_U",
-          "Value": "USER_2_MUSIC_U"
-        }
-      ]
+      "nickname": "主账号",
+      "cookie": "MUSIC_U=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     }
   ],
-  "MusicShareConfig": {
-    "MySongID": 114514
-  },
-  "EventSendConfig": {
-    "LagConfig": {
-      "RandomLag": true,
-      "LagBetweenSendAndDelete": true,
-      "DefaultLag": 60,
-      "LagMin": 30,
-      "LagMax": 120
-    }
-  },
-  "YunbeiSign": false,
-  "VipSign": false,
-  "VipListen": false,
-  "VipPlaylistID": 8402996200,
-  "VipSongLike": false,
-  "VipSongLikeIDs": [],
-  "ShowVipTaskList": false,
-  "Content": [
-    "YOUR_CUSTOM_TEXT_1",
-    "YOUR_CUSTOM_TEXT_2"
-  ],
-  "Cron": {
-    "Enabled": false,
-    "Expression": "0 0 1,13 * * ?",
-    "EnableLag": false,
-    "LagConfig": {
-      "LagMin": 600,
-      "LagMax": 3600
-    }
-  },
-  "PushPlusToken": "",
-  "ServerSendKey": ""
+  "enableYunbeiSign": true,
+  "enableYunbeiSignPC": true,
+  "enableVipSign": true,
+  "enableVipGrowthpoint": true,
+  "showVipTaskList": true,
+  "enableVipMusicTasks": true,
+  "vipMusicPlaylistId": 8402996200,
+  "vipMusicSongCount": 3,
+  "enableAutoPost": true,
+  "deletePreviousPost": true,
+  "postPlaylistId": 8402996200,
+  "postSongCount": 1
 }

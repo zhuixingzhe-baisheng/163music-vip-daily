@@ -7,6 +7,11 @@
  * - 领取 VIP 成长值
  * - VIP 音乐任务（收藏 + 听歌 + 取消）
  * - 自动发布/删除动态（每日分享歌曲）
+ * 
+ * 使用说明:
+ * 1. 复制 config_example.json 为 config.json
+ * 2. 在 config.json 中配置你的 MUSIC_U cookie
+ * 3. 运行：node auto_tasks_enhanced.js
  */
 
 const fs = require('fs')
@@ -28,32 +33,32 @@ const {
   event_del
 } = require('@neteasecloudmusicapienhanced/api')
 
-// 配置
-const config = {
-  users: [
-    {
-      // 用户配置（支持多用户）
-      cookie: 'MUSIC_U=00B09401045DAC703C4FE7538EF65F899CED5B93296BED2A26BD6407CF9932894E933592CCB2443B23DEFFB0DCD7B1AF87D9AFB93BB3ABA0D227426BAFD810BCBE3B7B9490BE83A67C38523C5619BBB3A21CEF949BD183339D052C82AF07FD5DF80939CD87FA9AAD964390450AD4244A86FBA8B5B04CEBE9128794D72B339BF69A8B4A1C04ED88ECC093A53282BD30A15EB2E600822D24A3CEEEED86F241C8B2C9775ABABDC0AC29C1E1BF37907B0FD947FE6CB2928A2E8BAEE327ACF02F6A108D2AC7AC26A55539A721ACC9BF562A5912F70529A3BC68BFE253AFB10E315B1A42175282C0AF81B2443006872E05C9FFAFABC52A700F9E7F11E1F2506EDE457A337232C67B8632E7B7D8B2C2DEE6D873B60EEDD16DA8B99D601C0D06356DC0402B06DF36A49C477176DAC6B6A267D379F480312DC65FAB7F5A642D77F7A21C20C59B6C800E208083C5A9880FA3D79C252FAD8BB9D33EE43A5695D01556D9F103E64EFF55C232928AD69D4116F7A1441E9596ABCCC852ED6C25DADDEA3425F9615F12FA50EE583020A93743C41C8E83BF6242FEDAD4EB605B16384CD85DB4CD1DB1',
-      nickname: '主账号'
-    }
-  ],
-  // 功能开关
-  enableYunbeiSign: true,          // 云贝签到（安卓端）
-  enableYunbeiSignPC: true,        // 云贝签到（PC 端）
-  enableVipSign: true,             // VIP 乐签打卡
-  enableVipGrowthpoint: true,      // VIP 成长值领取
-  showVipTaskList: true,
-  
-  // VIP 音乐任务
-  enableVipMusicTasks: true,       // 是否启用 VIP 音乐任务（收藏 + 听歌 + 取消）
-  vipMusicPlaylistId: 8402996200,  // 会员雷达歌单 ID
-  vipMusicSongCount: 3,            // 处理的歌曲数量
-  
-  // 自动发布动态
-  enableAutoPost: true,            // 是否启用自动发布动态
-  deletePreviousPost: true,        // 是否删除上一次的动态
-  postPlaylistId: 8402996200,      // 用于发布动态的歌单 ID
-  postSongCount: 1                 // 每次发布的歌曲数量（1-3）
+// 加载配置文件
+const configPath = path.join(__dirname, 'config.json')
+let config
+
+if (fs.existsSync(configPath)) {
+  const configData = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+  config = {
+    users: configData.users || [],
+    enableYunbeiSign: configData.enableYunbeiSign !== false,
+    enableYunbeiSignPC: configData.enableYunbeiSignPC !== false,
+    enableVipSign: configData.enableVipSign !== false,
+    enableVipGrowthpoint: configData.enableVipGrowthpoint !== false,
+    showVipTaskList: configData.showVipTaskList !== false,
+    enableVipMusicTasks: configData.enableVipMusicTasks !== false,
+    vipMusicPlaylistId: configData.vipMusicPlaylistId || 8402996200,
+    vipMusicSongCount: configData.vipMusicSongCount || 3,
+    enableAutoPost: configData.enableAutoPost !== false,
+    deletePreviousPost: configData.deletePreviousPost !== false,
+    postPlaylistId: configData.postPlaylistId || 8402996200,
+    postSongCount: configData.postSongCount || 1
+  }
+} else {
+  console.error('错误：未找到 config.json 配置文件')
+  console.error('请复制 config_example.json 为 config.json 并配置你的 MUSIC_U cookie')
+  console.error('示例：cp config_example.json config.json')
+  process.exit(1)
 }
 
 // 数据记录文件路径
@@ -250,48 +255,75 @@ async function runVipMusicTasks(cookie, playlistId, songCount) {
       const duration = (song.dt / 1000 / 60).toFixed(2)
       console.log(`    ${i + 1}. ${song.name} - ${song.artists} (${duration}分钟)`)
     })
+    console.log()
     
-    // 1. 收藏歌曲
-    console.log('  [1] 收藏歌曲...')
-    for (const song of songs) {
+    // 逐首执行：收藏→播放→等待→取消收藏
+    for (let i = 0; i < songs.length; i++) {
+      const song = songs[i]
+      console.log(`  [歌曲 ${i + 1}/${songs.length}] ${song.name} - ${song.artists}`)
+      console.log('  ' + '-'.repeat(40))
+      
+      // 1. 收藏歌曲
+      console.log('  [1] 收藏歌曲...')
       try {
-        const result = await song_like({ cookie, id: song.id, like: true })
-        if (result.body.code === 200 || result.body.code === 201) {
-          console.log(`    ✓ ${song.name}`)
+        const likeResult = await song_like({ cookie, id: song.id, like: true })
+        if (likeResult.body.code === 200 || likeResult.body.code === 201) {
+          console.log(`    ✓ 收藏成功`)
         }
-        await sleep(1000)
       } catch (e) {
-        console.log(`    ✗ ${song.name}: ${e.message}`)
+        console.log(`    ✗ 收藏失败：${e.message}`)
       }
-    }
-    
-    // 2. 上传听歌记录
-    console.log('  [2] 上传听歌记录...')
-    for (const song of songs) {
+      
+      await sleep(1000)
+      
+      // 2. 上传听歌记录
+      console.log('  [2] 上传听歌记录...')
       try {
         const playTime = Math.floor(song.dt / 1000)
-        const result = await scrobble({
+        const scrobbleResult = await scrobble({
           cookie,
           id: song.id,
           sourceid: playlistId,
           time: playTime
         })
-        if (result.body.code === 200) {
+        if (scrobbleResult.body.code === 200) {
           const timeStr = (playTime / 60).toFixed(2)
-          console.log(`    ✓ ${song.name} (${timeStr}分钟)`)
+          console.log(`    ✓ 听歌记录已上传 (${timeStr}分钟)`)
         }
-        await sleep(1500)
       } catch (e) {
-        console.log(`    ✗ ${song.name}: ${e.message}`)
+        console.log(`    ✗ 上传失败：${e.message}`)
       }
+      
+      await sleep(1000)
+      
+      // 3. 等待 30-60 秒（随机）
+      const waitTime = Math.floor(Math.random() * 30000) + 30000
+      console.log(`  [3] 等待 ${Math.floor(waitTime / 1000)} 秒...`)
+      await sleep(waitTime)
+      
+      // 4. 取消收藏
+      console.log('  [4] 取消收藏...')
+      try {
+        const unlikeResult = await song_like({ 
+          cookie, 
+          id: song.id, 
+          like: false
+        })
+        if (unlikeResult.body.code === 200) {
+          console.log(`    ✓ 取消收藏成功`)
+        } else {
+          console.log(`    ✗ 取消收藏失败 (code: ${unlikeResult.body.code})`)
+        }
+      } catch (e) {
+        console.log(`    ✗ 取消收藏失败：${e.message}`)
+      }
+      
+      console.log()
+      await sleep(1000)
     }
     
-    // 等待 1 分钟，确保听歌记录生效后再取消收藏
-    console.log('  等待 1 分钟，确保听歌记录生效...')
-    await sleep(60000)
-    
-    // 3. 检查并领取成长值
-    console.log('  [3] 领取成长值...')
+    // 检查并领取成长值
+    console.log('  [5] 检查并领取成长值...')
     const tasks = await vip_tasks({ cookie })
     if (tasks.body.code === 200) {
       const likeTask = tasks.body.data.taskList
@@ -308,27 +340,6 @@ async function runVipMusicTasks(cookie, playlistId, songCount) {
         }
       } else {
         console.log(`    ⊘ 无成长值可领取`)
-      }
-    }
-    
-    // 4. 取消收藏
-    console.log('  [4] 取消收藏...')
-    for (const song of songs) {
-      try {
-        const result = await song_like({ 
-          cookie, 
-          id: song.id, 
-          like: false,
-          uid: userId
-        })
-        if (result.body.code === 200) {
-          console.log(`    ✓ ${song.name}`)
-        } else {
-          console.log(`    ✗ ${song.name}: 失败 (code: ${result.body.code})`)
-        }
-        await sleep(1000)
-      } catch (e) {
-        console.log(`    ✗ ${song.name}: ${e.message}`)
       }
     }
     

@@ -36,30 +36,56 @@ npm install
 
 ## ⚙️ 配置说明
 
-编辑 `auto_tasks_enhanced.js` 文件中的 `config` 对象：
+1. **复制配置文件**
 
-```javascript
-const config = {
-  users: [
+```bash
+cp config_example.json config.json
+```
+
+2. **编辑 `config.json`**，填入你的 MUSIC_U cookie：
+
+```json
+{
+  "users": [
     {
-      // 用户配置（支持多用户）
-      cookie: 'MUSIC_U=xxxxxxxxxxxxx',  // 必填：网易云音乐 Cookie
-      nickname: '用户昵称'  // 可选：用于日志显示
+      "nickname": "主账号",
+      "cookie": "MUSIC_U=xxxxxxxxxxxxx"
     }
   ],
-  
-  // 功能开关
-  enableYunbeiSign: true,          // 云贝签到
-  enableVipSign: true,             // VIP 乐签打卡
-  enableVipGrowthpoint: true,      // VIP 成长值领取
-  showVipTaskList: true,           // 显示 VIP 任务列表
-  
-  // VIP 音乐任务
-  enableVipMusicTasks: false,      // 是否启用 VIP 音乐任务
-  vipMusicPlaylistId: 8402996200,  // 会员雷达歌单 ID
-  vipMusicSongCount: 3             // 处理的歌曲数量
+  "enableYunbeiSign": true,
+  "enableYunbeiSignPC": true,
+  "enableVipSign": true,
+  "enableVipGrowthpoint": true,
+  "showVipTaskList": true,
+  "enableVipMusicTasks": true,
+  "vipMusicPlaylistId": 8402996200,
+  "vipMusicSongCount": 3,
+  "enableAutoPost": true,
+  "deletePreviousPost": true,
+  "postPlaylistId": 8402996200,
+  "postSongCount": 1
 }
 ```
+
+### 配置参数说明
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `users` | Array | - | 用户列表，支持多账号 |
+| `users[].nickname` | String | - | 用户昵称（日志显示用） |
+| `users[].cookie` | String | - | MUSIC_U cookie（必填） |
+| `enableYunbeiSign` | Boolean | true | 云贝签到（安卓端） |
+| `enableYunbeiSignPC` | Boolean | true | 云贝签到（PC 端） |
+| `enableVipSign` | Boolean | true | VIP 乐签打卡 |
+| `enableVipGrowthpoint` | Boolean | true | VIP 成长值领取 |
+| `showVipTaskList` | Boolean | true | 显示 VIP 任务列表 |
+| `enableVipMusicTasks` | Boolean | true | VIP 音乐任务 |
+| `vipMusicPlaylistId` | Number | 8402996200 | 会员雷达歌单 ID |
+| `vipMusicSongCount` | Number | 3 | 处理歌曲数量 |
+| `enableAutoPost` | Boolean | true | 自动发布动态 |
+| `deletePreviousPost` | Boolean | true | 删除上次动态 |
+| `postPlaylistId` | Number | 8402996200 | 发布动态歌单 ID |
+| `postSongCount` | Number | 1 | 每次发布歌曲数（1-3） |
 
 ### 获取 Cookie
 
@@ -68,7 +94,9 @@ const config = {
 3. 按 F12 打开开发者工具
 4. 进入 Application → Cookies → https://music.163.com
 5. 复制 `MUSIC_U` 的值
-6. 添加到配置中：`MUSIC_U=xxxxxxxxxxxxx`
+6. 填入配置：`"cookie": "MUSIC_U=xxxxxxxxxxxxx"`
+
+**安全提示**：`config.json` 包含敏感信息，请勿上传到公开仓库！
 
 ## 🚀 使用方法
 
@@ -159,9 +187,10 @@ crontab -e
 | 文件 | 用途 |
 |------|------|
 | `auto_tasks_enhanced.js` | **主脚本**（包含所有功能） |
-| `vip_music_tasks_automated.js` | VIP 音乐任务独立脚本（可单独运行） |
 | `package.json` | 项目配置和依赖 |
+| `config.json` | **配置文件**（需自行创建，包含敏感信息） |
 | `config_example.json` | 配置文件示例 |
+| `README.md` | 项目文档 |
 
 ## 🔧 高级配置
 

@@ -52,22 +52,13 @@
 - 手动运行：青龙面板 → 任务列表 → 点击运行
 - 自动运行：每日 8:00 自动执行
 
-### 方式二：本地运行
+---
 
-```bash
-# 克隆仓库
-git clone -b qinglong https://github.com/zhuixingzhe-baisheng/163music-vip-daily.git
-cd 163music-vip-daily
+## 📄 其他部署方式
 
-# 安装依赖
-npm install
+**本地运行 / PM2 / Crontab**：请切换到 [main 分支](https://github.com/zhuixingzhe-baisheng/163music-vip-daily)
 
-# 配置环境变量
-export NetEase_MusicU="MUSIC_U=xxxxx"
-
-# 运行
-node auto_tasks_qinglong.js
-```
+---
 
 ## ⚙️ 环境变量配置
 

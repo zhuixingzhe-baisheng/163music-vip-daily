@@ -155,15 +155,33 @@ pm2 startup
 pm2 save
 ```
 
-### 定时任务（Cron）
+### 定时任务
+
+**方法 1: PM2 定时任务（推荐）**
 
 ```bash
+# 启动并设置定时重启
+export NETEASE_MUSIC_U="MUSIC_U=你的 cookie"
+pm2 start auto_tasks_enhanced.js --name "netease-tasks" --cron-restart="0 8 * * *"
+pm2 save
+```
+
+**方法 2: Crontab 定时任务**
+
+```bash
+# 编辑 crontab
 crontab -e
-# 每天早上 8:00 执行
+
+# 添加任务（每天早上 8:00 执行）
 0 8 * * * cd /path/to/163music-vip-daily && /usr/bin/node auto_tasks_enhanced.js >> /path/to/logs/netease.log 2>&1
 ```
 
-### 多用户配置
+**常用 Cron 时间：**
+- `0 8 * * *` - 每天早上 8:00
+- `0 20 * * *` - 每天晚上 8:00
+- `0 */6 * * *` - 每 6 小时
+
+### 消息推送
 
 **环境变量方式：** 为每个账号创建独立脚本
 

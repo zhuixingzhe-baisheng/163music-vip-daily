@@ -12,7 +12,7 @@
  * - NetEase_MusicU: MUSIC_U cookie（必填）
  * - NetEase_Nickname: 用户昵称（可选，默认"主账号"）
  * - NetEase_EnableYunbeiSign: 云贝签到 - 安卓端（可选，默认 true）
- * - NetEase_EnableYunbeiSignPC: 云贝签到-PC 端（可选，默认 true）
+ * - NetEase_EnableYunbeiSignPC: 云贝签到 -PC 端（可选，默认 true）
  * - NetEase_EnableVipSign: VIP 乐签打卡（可选，默认 true）
  * - NetEase_EnableVipGrowthpoint: VIP 成长值领取（可选，默认 true）
  * - NetEase_ShowVipTaskList: 显示 VIP 任务列表（可选，默认 true）
@@ -24,6 +24,9 @@
  * - NetEase_PostPlaylistId: 发布动态歌单 ID（可选，默认 8402996200）
  * - NetEase_PostSongCount: 每次发布歌曲数（可选，默认 1）
  * - NetEase_ServerSendKey: Server 酱推送 SendKey（可选）
+ * - NetEase_PushPlusToken: PushPlus 推送 Token（可选）
+ * - NetEase_PushPlusChannel: PushPlus 推送渠道（可选，wechat/wechatcp/corp/webhook/sms）
+ * - NetEase_PushPlusWebhook: PushPlus 自定义 Webhook（可选）
  * 
  * 依赖：
  * - @neteasecloudmusicapienhanced/api
@@ -90,7 +93,10 @@ const config = {
   deletePreviousPost: getConfig('NetEase_DeletePreviousPost', true),
   postPlaylistId: getConfig('NetEase_PostPlaylistId', 8402996200),
   postSongCount: getConfig('NetEase_PostSongCount', 1),
-  serverSendKey: getConfig('NetEase_ServerSendKey', '')
+  serverSendKey: getConfig('NetEase_ServerSendKey', ''),
+  pushPlusToken: getConfig('NetEase_PushPlusToken', ''),
+  pushPlusChannel: getConfig('NetEase_PushPlusChannel', 'wechat'),
+  pushPlusWebhook: getConfig('NetEase_PushPlusWebhook', '')
 }
 
 // 检查必要配置
@@ -132,6 +138,44 @@ async function sendServerChan(title, content) {
     }
   } catch (e) {
     console.log('⚠️ Server 酱推送异常:', e.message)
+  }
+}
+
+// PushPlus 推送
+async function sendPushPlus(title, content) {
+  if (!config.pushPlusToken) return
+  
+  try {
+    const url = 'http://www.pushplus.plus/send'
+    const data = {
+      token: config.pushPlusToken,
+      title: title,
+      content: content,
+      template: 'html',
+      channel: config.pushPlusChannel
+    }
+    
+    // 如果使用 webhook 渠道，需要额外参数
+    if (config.pushPlusChannel === 'webhook' && config.pushPlusWebhook) {
+      data.webhook = config.pushPlusWebhook
+    }
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    })
+    
+    const result = await response.json()
+    if (result.code === 200) {
+      console.log('📱 PushPlus 推送成功')
+    } else {
+      console.log('⚠️ PushPlus 推送失败:', result.msg)
+    }
+  } catch (e) {
+    console.log('⚠️ PushPlus 推送异常:', e.message)
   }
 }
 
@@ -304,11 +348,20 @@ async function main() {
   console.log('所有用户任务执行完成!')
   console.log('='.repeat(60))
   
-  // 发送 Server 酱推送
-  if (config.serverSendKey && logs.length > 0) {
+  // 发送推送通知
+  if (logs.length > 0) {
     const title = '网易云音乐任务完成'
     const content = logs.join('\n\n')
-    await sendServerChan(title, content)
+    
+    // Server 酱推送
+    if (config.serverSendKey) {
+      await sendServerChan(title, content)
+    }
+    
+    // PushPlus 推送
+    if (config.pushPlusToken) {
+      await sendPushPlus(title, content)
+    }
   }
 }
 

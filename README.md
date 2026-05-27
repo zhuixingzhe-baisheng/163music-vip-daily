@@ -1,6 +1,20 @@
 # 网易云音乐自动任务脚本
 
+[![GitHub](https://img.shields.io/github/v/tag/zhuixingzhe-baisheng/163music-vip-daily?label=version)](https://github.com/zhuixingzhe-baisheng/163music-vip-daily)
+[![License](https://img.shields.io/github/license/zhuixingzhe-baisheng/163music-vip-daily)](LICENSE)
+
 基于 **API Enhanced** 的网易云音乐自动任务工具，支持云贝签到、VIP 乐签打卡、VIP 成长值领取、VIP 音乐任务等功能。
+
+## 🌿 分支说明
+
+| 分支 | 用途 | 配置方式 | 适用场景 |
+|------|------|----------|----------|
+| **main** | 本地运行版本 | `config.json` 文件 | 本地服务器、PM2、Crontab |
+| **qinglong** | 青龙面板版本 | 环境变量 | 青龙面板 Docker 部署 |
+
+**👉 使用青龙面板？请切换到 [qinglong](https://github.com/zhuixingzhe-baisheng/163music-vip-daily/tree/qinglong) 分支**
+
+---
 
 ## 📋 功能特性
 
@@ -36,6 +50,8 @@ npm install
 
 ## ⚙️ 配置说明
 
+### main 分支 - 配置文件方式
+
 1. **复制配置文件**
 
 ```bash
@@ -67,7 +83,28 @@ cp config_example.json config.json
 }
 ```
 
-### 配置参数说明
+### qinglong 分支 - 环境变量方式
+
+**环境变量配置**（青龙面板 → 环境变量）：
+
+| 变量名 | 必填 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `NetEase_MusicU` | ✅ | - | 网易云音乐 Cookie（必填） |
+| `NetEase_Nickname` | ❌ | `主账号` | 用户昵称 |
+| `NetEase_EnableYunbeiSign` | ❌ | `true` | 云贝签到 - 安卓端 |
+| `NetEase_EnableYunbeiSignPC` | ❌ | `true` | 云贝签到-PC 端 |
+| `NetEase_EnableVipSign` | ❌ | `true` | VIP 乐签打卡 |
+| `NetEase_EnableVipGrowthpoint` | ❌ | `true` | VIP 成长值领取 |
+| `NetEase_ShowVipTaskList` | ❌ | `true` | 显示 VIP 任务列表 |
+| `NetEase_EnableVipMusicTasks` | ❌ | `true` | VIP 音乐任务 |
+| `NetEase_VipMusicPlaylistId` | ❌ | `8402996200` | 会员雷达歌单 ID |
+| `NetEase_VipMusicSongCount` | ❌ | `3` | 处理歌曲数量 |
+| `NetEase_EnableAutoPost` | ❌ | `true` | 自动发布动态 |
+| `NetEase_DeletePreviousPost` | ❌ | `true` | 删除上次动态 |
+| `NetEase_PostPlaylistId` | ❌ | `8402996200` | 发布动态歌单 ID |
+| `NetEase_PostSongCount` | ❌ | `1` | 每次发布歌曲数 |
+
+**配置参数说明**（main 分支）
 
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
@@ -191,6 +228,40 @@ crontab -e
 | `config.json` | **配置文件**（需自行创建，包含敏感信息） |
 | `config_example.json` | 配置文件示例 |
 | `README.md` | 项目文档 |
+| `DEPLOY.md` | 快速部署指南 |
+
+## 🌿 分支选择指南
+
+**我应该使用哪个分支？**
+
+### 选择 main 分支，如果你：
+
+- ✅ 在本地服务器运行（Linux、macOS、Windows）
+- ✅ 使用 PM2 管理进程
+- ✅ 使用 Crontab 定时任务
+- ✅ 喜欢配置文件方式
+
+### 选择 qinglong 分支，如果你：
+
+- ✅ 使用青龙面板 Docker 部署
+- ✅ 希望使用环境变量配置
+- ✅ 需要面板可视化管理
+- ✅ 想要定时任务管理界面
+
+**分支切换**：
+
+```bash
+# 克隆 main 分支（本地版）
+git clone https://github.com/zhuixingzhe-baisheng/163music-vip-daily.git
+
+# 克隆 qinglong 分支（青龙版）
+git clone -b qinglong https://github.com/zhuixingzhe-baisheng/163music-vip-daily.git
+```
+
+## 📄 相关文档
+
+- [DEPLOY.md](./DEPLOY.md) - 快速部署指南
+- [qinglong 分支 README](https://github.com/zhuixingzhe-baisheng/163music-vip-daily/tree/qinglong) - 青龙面板文档
 
 ## 🔧 高级配置
 

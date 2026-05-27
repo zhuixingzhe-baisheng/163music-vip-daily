@@ -1,272 +1,203 @@
-# 网易云音乐自动任务脚本
+# 网易云音乐自动任务 - 青龙面板版
 
-基于 **API Enhanced** 的网易云音乐自动任务工具，支持云贝签到、VIP 乐签打卡、VIP 成长值领取、VIP 音乐任务等功能。
+[![GitHub](https://img.shields.io/github/v/tag/zhuixingzhe-baisheng/163music-vip-daily?label=version)](https://github.com/zhuixingzhe-baisheng/163music-vip-daily)
+[![License](https://img.shields.io/github/license/zhuixingzhe-baisheng/163music-vip-daily)](LICENSE)
 
-## 📋 功能特性
+网易云音乐每日自动任务工具，支持青龙面板部署，自动完成云贝签到、VIP 乐签打卡、成长值领取等任务。
 
-| 功能 | 状态 | 说明 |
+## ✨ 功能特性
+
+| 功能 | 说明 | 奖励 |
 |------|------|------|
-| 云贝签到 | ✅ | 每日云贝签到，获得云贝 reward |
-| VIP 乐签打卡 | ✅ | VIP 用户每日乐签打卡，获得成长值 |
-| VIP 成长值领取 | ✅ | 自动领取已完成的 VIP 任务成长值 |
-| VIP 音乐任务 | ✅ | 收藏歌曲 + 听歌记录 + 领取成长值 + 取消收藏 |
+| 云贝签到 | 安卓端 + PC 端双签到 | +1 +50 云贝 |
+| VIP 乐签打卡 | 每日签到获得成长值 | +3 成长值 |
+| VIP 成长值领取 | 自动领取已完成任务 | 额外成长值 |
+| VIP 音乐任务 | 收藏→听歌→取消完成限时任务 | +3 成长值 |
+| 自动发布动态 | 每日分享歌曲到动态 | - |
 
-### VIP 音乐任务详解
+## 🚀 快速开始
 
-**任务流程**：
-1. **收藏歌曲** - 从指定歌单收藏 3 首 VIP 歌曲
-2. **上传听歌记录** - 使用实际歌曲时长上报听歌记录
-3. **领取成长值** - 如果"收藏三首歌曲"任务存在且完成，自动领取成长值
-4. **取消收藏** - 取消已收藏的歌曲，保持歌单整洁
+### 方式一：青龙面板（推荐）
 
-**特点**：
-- ✅ 从 API 动态获取歌曲（每次运行可能获取不同的歌曲）
-- ✅ 使用实际歌曲时长（从 `dt` 字段获取，单位：毫秒）
-- ✅ 自动检测并领取成长值（+3 成长值/天）
-- ✅ 支持多用户并发处理
+**1. 添加仓库**
 
-## 📦 安装依赖
+在青龙面板中添加：
+```
+名称：163music-vip-daily
+仓库：https://github.com/zhuixingzhe-baisheng/163music-vip-daily
+分支：qinglong
+定时：0 8 * * *
+```
+
+**2. 安装依赖**
+
+青龙面板 → 依赖管理 → 新建依赖：
+```
+类型：nodeJs
+名称：@neteasecloudmusicapienhanced/api
+版本：latest
+```
+
+**3. 添加环境变量**
+
+青龙面板 → 环境变量 → 新建变量：
+
+| 变量名 | 值示例 | 必填 |
+|--------|--------|------|
+| `NetEase_MusicU` | `MUSIC_U=00B09401045DAC...` | ✅ |
+| `NetEase_Nickname` | `主账号` | ❌ |
+
+**4. 运行任务**
+
+- 手动运行：青龙面板 → 任务列表 → 点击运行
+- 自动运行：每日 8:00 自动执行
+
+### 方式二：本地运行
 
 ```bash
+# 克隆仓库
+git clone -b qinglong https://github.com/zhuixingzhe-baisheng/163music-vip-daily.git
+cd 163music-vip-daily
+
+# 安装依赖
 npm install
+
+# 配置环境变量
+export NetEase_MusicU="MUSIC_U=xxxxx"
+
+# 运行
+node auto_tasks_qinglong.js
 ```
 
-依赖包：
-- `@neteasecloudmusicapienhanced/api` (v4.32.1+) - 网易云音乐 API Enhanced 版本
+## ⚙️ 环境变量配置
 
-## ⚙️ 配置说明
+### 必填变量
 
-1. **复制配置文件**
+| 变量名 | 说明 | 获取方式 |
+|--------|------|----------|
+| `NetEase_MusicU` | 网易云音乐 Cookie | 见下方获取教程 |
 
-```bash
-cp config_example.json config.json
-```
+### 可选变量
 
-2. **编辑 `config.json`**，填入你的 MUSIC_U cookie：
+| 变量名 | 默认值 | 说明 |
+|--------|--------|------|
+| `NetEase_Nickname` | `主账号` | 用户昵称 |
+| `NetEase_EnableYunbeiSign` | `true` | 云贝签到 - 安卓端 |
+| `NetEase_EnableYunbeiSignPC` | `true` | 云贝签到-PC 端 |
+| `NetEase_EnableVipSign` | `true` | VIP 乐签打卡 |
+| `NetEase_EnableVipGrowthpoint` | `true` | VIP 成长值领取 |
+| `NetEase_ShowVipTaskList` | `true` | 显示 VIP 任务列表 |
+| `NetEase_EnableVipMusicTasks` | `true` | VIP 音乐任务 |
+| `NetEase_VipMusicPlaylistId` | `8402996200` | 会员雷达歌单 ID |
+| `NetEase_VipMusicSongCount` | `3` | 处理歌曲数量 |
+| `NetEase_EnableAutoPost` | `true` | 自动发布动态 |
+| `NetEase_DeletePreviousPost` | `true` | 删除上次动态 |
+| `NetEase_PostPlaylistId` | `8402996200` | 发布动态歌单 ID |
+| `NetEase_PostSongCount` | `1` | 每次发布歌曲数 |
 
-```json
-{
-  "users": [
-    {
-      "nickname": "主账号",
-      "cookie": "MUSIC_U=xxxxxxxxxxxxx"
-    }
-  ],
-  "enableYunbeiSign": true,
-  "enableYunbeiSignPC": true,
-  "enableVipSign": true,
-  "enableVipGrowthpoint": true,
-  "showVipTaskList": true,
-  "enableVipMusicTasks": true,
-  "vipMusicPlaylistId": 8402996200,
-  "vipMusicSongCount": 3,
-  "enableAutoPost": true,
-  "deletePreviousPost": true,
-  "postPlaylistId": 8402996200,
-  "postSongCount": 1
-}
-```
+## 🍪 获取 MUSIC_U Cookie
 
-### 配置参数说明
-
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `users` | Array | - | 用户列表，支持多账号 |
-| `users[].nickname` | String | - | 用户昵称（日志显示用） |
-| `users[].cookie` | String | - | MUSIC_U cookie（必填） |
-| `enableYunbeiSign` | Boolean | true | 云贝签到（安卓端） |
-| `enableYunbeiSignPC` | Boolean | true | 云贝签到（PC 端） |
-| `enableVipSign` | Boolean | true | VIP 乐签打卡 |
-| `enableVipGrowthpoint` | Boolean | true | VIP 成长值领取 |
-| `showVipTaskList` | Boolean | true | 显示 VIP 任务列表 |
-| `enableVipMusicTasks` | Boolean | true | VIP 音乐任务 |
-| `vipMusicPlaylistId` | Number | 8402996200 | 会员雷达歌单 ID |
-| `vipMusicSongCount` | Number | 3 | 处理歌曲数量 |
-| `enableAutoPost` | Boolean | true | 自动发布动态 |
-| `deletePreviousPost` | Boolean | true | 删除上次动态 |
-| `postPlaylistId` | Number | 8402996200 | 发布动态歌单 ID |
-| `postSongCount` | Number | 1 | 每次发布歌曲数（1-3） |
-
-### 获取 Cookie
-
-1. 打开网易云音乐网页版 (https://music.163.com)
+1. 打开 [网易云音乐网页版](https://music.163.com)
 2. 登录账号
-3. 按 F12 打开开发者工具
-4. 进入 Application → Cookies → https://music.163.com
+3. 按 `F12` 打开开发者工具
+4. 进入 `Application` → `Cookies` → `https://music.163.com`
 5. 复制 `MUSIC_U` 的值
-6. 填入配置：`"cookie": "MUSIC_U=xxxxxxxxxxxxx"`
+6. 格式：`MUSIC_U=xxxxxxxxxxxxx`
 
-**安全提示**：`config.json` 包含敏感信息，请勿上传到公开仓库！
+**注意**：Cookie 有效期约 30 天，需定期更新。
 
-## 🚀 使用方法
+## 📋 多账号配置
 
-### 方法 1: 直接运行（推荐）
+### 方式一：多个环境变量
 
-```bash
-node auto_tasks_enhanced.js
+```
+NetEase_MusicU_1 = MUSIC_U=账号 1 的 cookie
+NetEase_MusicU_2 = MUSIC_U=账号 2 的 cookie
+NetEase_MusicU_3 = MUSIC_U=账号 3 的 cookie
 ```
 
-### 方法 2: 使用 PM2 后台运行
+### 方式二：使用 & 分隔
 
-```bash
-# 安装 PM2
-npm install -g pm2
-
-# 启动任务
-pm2 start auto_tasks_enhanced.js --name "netease-tasks"
-
-# 设置开机自启
-pm2 startup
-pm2 save
+```
+NetEase_MusicU = MUSIC_U=账号 1&MUSIC_U=账号 2&MUSIC_U=账号 3
 ```
 
-### 方法 3: 设置定时任务 (Cron)
-
-```bash
-# 编辑 crontab
-crontab -e
-
-# 添加定时任务（每天早上 8:00 执行）
-0 8 * * * /usr/bin/node /path/to/auto_tasks_enhanced.js >> /path/to/logs/netease.log 2>&1
-```
-
-## 📊 输出示例
+## 📊 日志示例
 
 ```
 ============================================================
-网易云音乐自动任务 (API Enhanced 版本)
+网易云音乐自动任务 (青龙面板版本)
 ============================================================
 
->>> 开始处理用户：测试用户
+>>> 开始处理用户：主账号
 ------------------------------------------------------------
-[测试用户] 检查 VIP 状态...
-[测试用户] VIP 状态：已开通
-[测试用户] 执行云贝签到...
-[测试用户] 云贝签到结果：{ data: { days: 0, shells: 1 }, code: 200 }
-[测试用户] 执行 VIP 音乐任务...
-  准备处理 3 首歌曲:
-    1. 不分手的恋爱 - 汪苏泷 (3.43 分钟)
-    2. 我看过 - 周星星 (2.74 分钟)
-  [1] 收藏歌曲...
-    ✓ 不分手的恋爱
-    ✓ 我看过
-  [2] 上传听歌记录...
-    ✓ 不分手的恋爱 (3.42 分钟)
-    ✓ 我看过 (2.73 分钟)
-  [3] 领取成长值...
-    ✓ 领取成功 +3
-  [4] 取消收藏...
-    ✓ 不分手的恋爱
-    ✓ 我看过
-  ✓ VIP 音乐任务完成
-------------------------------------------------------------
+[主账号] VIP 状态：已开通
+[主账号] 云贝签到（安卓）结果：+1 云贝
+[主账号] 云贝签到（PC）结果：+50 云贝
+[主账号] VIP 音乐任务：完成 3 首歌曲
+[主账号] VIP 乐签打卡：+3 成长值
+[主账号] ✓ 任务完成
 
 ============================================================
 所有用户任务执行完成!
 ============================================================
 ```
 
-## 🎯 VIP 任务说明
-
-### 当前可用的 VIP 任务
-
-| 任务名称 | 成长值 | 状态 | 说明 |
-|---------|--------|------|------|
-| 成长值 +3（浏览黑胶时光机） | +3 | ✅ 已完成 | 每日任务，已计入成长值 |
-
-### 限时任务（可能刷新）
-
-| 任务名称 | 成长值 | 说明 |
-|---------|--------|------|
-| 收藏三首歌曲 | +3 | 平台限时任务，可能每天/每周刷新 |
-
-**注意**："收藏三首歌曲"任务是网易云音乐平台配置的限时任务，无法通过 API 手动创建。脚本会在每次运行时检查任务列表，当任务出现时自动完成并领取成长值。
-
-## 📁 项目文件
-
-| 文件 | 用途 |
-|------|------|
-| `auto_tasks_enhanced.js` | **主脚本**（包含所有功能） |
-| `package.json` | 项目配置和依赖 |
-| `config.json` | **配置文件**（需自行创建，包含敏感信息） |
-| `config_example.json` | 配置文件示例 |
-| `README.md` | 项目文档 |
-
-## 🔧 高级配置
-
-### 多用户配置
-
-```javascript
-users: [
-  {
-    cookie: 'MUSIC_U=xxxx1',
-    nickname: '账号 1'
-  },
-  {
-    cookie: 'MUSIC_U=xxxx2',
-    nickname: '账号 2'
-  }
-]
-```
-
-脚本会依次处理每个用户，用户间延时 5 秒（避免风控）。
-
-### VIP 音乐任务歌单选择
-
-默认使用"会员雷达"歌单（ID: 8402996200），你可以替换为其他歌单：
-
-```javascript
-vipMusicPlaylistId: 1234567890  // 替换为你喜欢的 VIP 专属歌单
-```
-
 ## ⚠️ 注意事项
 
-1. **Cookie 安全**: 不要将 Cookie 提交到 Git 仓库或公开分享
-2. **请求频率**: 脚本已内置延时，避免请求过快导致封禁
-3. **任务时效**: VIP 任务可能每天刷新，及时执行脚本
-4. **账号风控**: 多账号建议设置更长的延时时间
-5. **API 稳定性**: 网易云 API 可能变化，如遇问题请更新 API 包
+1. **Cookie 有效期**：MUSIC_U cookie 有效期约 30 天，过期需重新获取
+2. **执行时间**：完整执行约 2-3 分钟（VIP 音乐任务需要等待）
+3. **账号风控**：建议合理设置执行时间，避免频繁请求
+4. **时区问题**：青龙容器默认 UTC 时间，北京时间 = UTC + 8
 
-## 🐛 故障排查
+## 🐛 常见问题
 
-### 问题 1: Cookie 过期
+### Q: 提示"未设置 MUSIC_U cookie"
 
-**症状**: API 返回 401 或 400 错误
+**A**: 检查环境变量是否拼写正确，确认值格式为 `MUSIC_U=xxxxxxxx`
 
-**解决**:
-1. 重新获取 Cookie（参考"获取 Cookie"章节）
-2. 更新配置文件
-3. 重新启动脚本
+### Q: 乐签打卡显示"成长值已到账，歌曲信息稍后更新"
 
-### 问题 2: VIP 音乐任务未执行
+**A**: 网易云 API 中间状态，成长值已成功到账，不影响结果
 
-**症状**: 日志中没有"执行 VIP 音乐任务"
+### Q: VIP 任务"暂无可领取的成长值"
 
-**解决**:
-1. 检查配置：`enableVipMusicTasks: true`
-2. 确认依赖已安装：`npm install`
-3. 重新运行脚本
+**A**: 平台限时任务未完成或未刷新，属正常现象
 
-### 问题 3: 无法领取成长值
+## 📄 文件结构
 
-**症状**: 显示"暂无可领取的成长值"
+```
+163music-vip-daily/
+├── auto_tasks_qinglong.js    # 青龙面板脚本
+├── package.json              # 依赖配置
+├── README.md                 # 项目文档
+├── LICENSE                   # 开源协议
+└── .gitignore               # Git 忽略规则
+```
 
-**解决**:
-- 这是正常状态，表示当前没有已完成但未领取的任务
-- VIP 音乐任务出现时会自动领取（+3 成长值）
-- 等待任务刷新（通常每天 0:00）
+## 📱 相关项目
 
-## 📖 参考资料
+- [main 分支](https://github.com/zhuixingzhe-baisheng/163music-vip-daily/tree/main) - 本地运行版本
+- [网易云 API Enhanced](https://www.npmjs.com/package/@neteasecloudmusicapienhanced/api)
+- [青龙面板](https://github.com/whyour/qinglong)
 
-- **API Enhanced 仓库**: https://github.com/neteasecloudmusicapienhanced/api-enhanced
-- **API Enhanced 文档**: https://github.com/neteasecloudmusicapienhanced/api-enhanced/blob/master/README.md
-- **npm 包**: https://www.npmjs.com/package/@neteasecloudmusicapienhanced/api
+## 📝 更新日志
 
-## 📄 License
+### v2.1.0 (2026-05-27)
+- ✅ 新增青龙面板专用版本
+- ✅ 支持环境变量配置
+- ✅ 优化 VIP 乐签打卡判断逻辑
+- ✅ 修复取消收藏功能
 
-MIT
+### v2.0.0 (2026-05-26)
+- ✅ 改用配置文件方式
+- ✅ 移除硬编码 Cookie
+- ✅ 精简项目文件
 
----
+## 📄 开源协议
 
-**最后更新**: 2026-05-22  
-**维护状态**: ✅ 正常维护
+MIT License
+
+## ⭐ Star History
+
+如果这个项目对你有帮助，请给个 Star ✨

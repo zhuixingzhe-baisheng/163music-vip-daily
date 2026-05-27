@@ -52,7 +52,12 @@ if (fs.existsSync(configPath)) {
     enableAutoPost: configData.enableAutoPost !== false,
     deletePreviousPost: configData.deletePreviousPost !== false,
     postPlaylistId: configData.postPlaylistId || 8402996200,
-    postSongCount: configData.postSongCount || 1
+    postSongCount: configData.postSongCount || 1,
+    // 推送配置
+    serverSendKey: configData.serverSendKey || '',
+    pushPlusToken: configData.pushPlusToken || '',
+    pushPlusChannel: configData.pushPlusChannel || 'wechat',
+    pushPlusWebhook: configData.pushPlusWebhook || ''
   }
 } else {
   console.error('错误：未找到 config.json 配置文件')
@@ -63,6 +68,73 @@ if (fs.existsSync(configPath)) {
 
 // 数据记录文件路径
 const dataFilePath = path.join(__dirname, 'user_data.json')
+
+// Server 酱推送
+async function sendServerChan(title, content) {
+  if (!config.serverSendKey) return
+  
+  try {
+    const url = `https://sctapi.ftqq.com/${config.serverSendKey}.send`
+    const data = new URLSearchParams({
+      title: title,
+      desp: content
+    })
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: data.toString()
+    })
+    
+    const result = await response.json()
+    if (result.code === 0) {
+      console.log('📱 Server 酱推送成功')
+    } else {
+      console.log('⚠️ Server 酱推送失败:', result.message)
+    }
+  } catch (e) {
+    console.log('⚠️ Server 酱推送异常:', e.message)
+  }
+}
+
+// PushPlus 推送
+async function sendPushPlus(title, content) {
+  if (!config.pushPlusToken) return
+  
+  try {
+    const url = 'http://www.pushplus.plus/send'
+    const data = {
+      token: config.pushPlusToken,
+      title: title,
+      content: content,
+      template: 'html',
+      channel: config.pushPlusChannel
+    }
+    
+    if (config.pushPlusChannel === 'webhook' && config.pushPlusWebhook) {
+      data.webhook = config.pushPlusWebhook
+    }
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    })
+    
+    const result = await response.json()
+    if (result.code === 200) {
+      console.log('📱 PushPlus 推送成功')
+    } else {
+      console.log('⚠️ PushPlus 推送失败:', result.msg)
+    }
+  } catch (e) {
+    console.log('⚠️ PushPlus 推送异常:', e.message)
+  }
+}
 
 // 主函数
 async function main() {
@@ -512,7 +584,25 @@ process.on('unhandledRejection', (reason, promise) => {
 })
 
 // 运行主函数
-main().catch(error => {
-  console.error('主程序错误:', error)
-  process.exit(1)
-})
+async function runWithPush() {
+  const results = []
+  
+  try {
+    await main()
+    results.push('✅ 所有任务执行完成')
+  } catch (error) {
+    console.error('主程序错误:', error)
+    results.push(`❌ 执行失败：${error.message}`)
+  }
+  
+  // 推送通知
+  const title = '网易云音乐任务执行报告'
+  const content = results.join('\n') + '\n\n执行时间：' + new Date().toLocaleString('zh-CN')
+  
+  await Promise.all([
+    sendServerChan(title, content),
+    sendPushPlus(title, content)
+  ])
+}
+
+runWithPush()

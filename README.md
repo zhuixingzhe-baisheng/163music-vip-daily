@@ -91,6 +91,10 @@ cp config_example.json config.json
 | `deletePreviousPost` | Boolean | true | 删除上次动态 |
 | `postPlaylistId` | Number | 8402996200 | 发布动态歌单 ID |
 | `postSongCount` | Number | 1 | 每次发布歌曲数（1-3） |
+| `serverSendKey` | String | - | Server 酱 SendKey（选填） |
+| `pushPlusToken` | String | - | PushPlus Token（选填） |
+| `pushPlusChannel` | String | wechat | PushPlus 推送渠道 |
+| `pushPlusWebhook` | String | - | PushPlus webhook 地址 |
 
 ### 获取 Cookie
 
@@ -102,6 +106,33 @@ cp config_example.json config.json
 6. 填入配置：`"cookie": "MUSIC_U=xxxxxxxxxxxxx"`
 
 **安全提示**：`config.json` 包含敏感信息，请勿上传到公开仓库！
+
+### 📱 消息推送配置
+
+支持 **Server 酱**和 **PushPlus** 双推送渠道，可同时配置。
+
+#### Server 酱配置
+
+1. 访问 [Server 酱](https://sct.ftqq.com/)
+2. 登录并获取 SendKey
+3. 填入配置：`"serverSendKey": "SCTxxxxxxxx"`
+
+#### PushPlus 配置
+
+1. 访问 [PushPlus](http://www.pushplus.plus/doc/guide/web.html)
+2. 登录并获取 Token
+3. 填入配置：`"pushPlusToken": "xxxxxxxxx"`
+
+**推送渠道**（`pushPlusChannel`）：
+- `wechat` - 微信公众号（默认）
+- `wechatcp` - 企业微信
+- `corp` - 企业微信应用
+- `webhook` - 自定义 webhook
+- `sms` - 短信
+
+**Webhook 地址**（可选）：
+- 当渠道为 `webhook` 时填写：`"pushPlusWebhook": "https://your-webhook.com/xxxx"`
+
 
 ## 🚀 使用方法
 

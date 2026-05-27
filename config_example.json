@@ -16,5 +16,9 @@
   "enableAutoPost": true,
   "deletePreviousPost": true,
   "postPlaylistId": 8402996200,
-  "postSongCount": 1
+  "postSongCount": 1,
+  "serverSendKey": "",
+  "pushPlusToken": "",
+  "pushPlusChannel": "wechat",
+  "pushPlusWebhook": ""
 }

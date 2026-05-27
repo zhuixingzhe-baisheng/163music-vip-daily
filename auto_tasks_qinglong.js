@@ -11,7 +11,7 @@
  * 青龙环境变量:
  * - NetEase_MusicU: MUSIC_U cookie（必填）
  * - NetEase_Nickname: 用户昵称（可选，默认"主账号"）
- * - NetEase_EnableYunbeiSign: 云贝签到-安卓端（可选，默认 true）
+ * - NetEase_EnableYunbeiSign: 云贝签到 - 安卓端（可选，默认 true）
  * - NetEase_EnableYunbeiSignPC: 云贝签到-PC 端（可选，默认 true）
  * - NetEase_EnableVipSign: VIP 乐签打卡（可选，默认 true）
  * - NetEase_EnableVipGrowthpoint: VIP 成长值领取（可选，默认 true）
@@ -23,6 +23,7 @@
  * - NetEase_DeletePreviousPost: 删除上次动态（可选，默认 true）
  * - NetEase_PostPlaylistId: 发布动态歌单 ID（可选，默认 8402996200）
  * - NetEase_PostSongCount: 每次发布歌曲数（可选，默认 1）
+ * - NetEase_ServerSendKey: Server 酱推送 SendKey（可选）
  * 
  * 依赖：
  * - @neteasecloudmusicapienhanced/api
@@ -88,7 +89,8 @@ const config = {
   enableAutoPost: getConfig('NetEase_EnableAutoPost', true),
   deletePreviousPost: getConfig('NetEase_DeletePreviousPost', true),
   postPlaylistId: getConfig('NetEase_PostPlaylistId', 8402996200),
-  postSongCount: getConfig('NetEase_PostSongCount', 1)
+  postSongCount: getConfig('NetEase_PostSongCount', 1),
+  serverSendKey: getConfig('NetEase_ServerSendKey', '')
 }
 
 // 检查必要配置
@@ -103,13 +105,46 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
+// Server 酱推送
+async function sendServerChan(title, content) {
+  if (!config.serverSendKey) return
+  
+  try {
+    const url = `https://sctapi.ftqq.com/${config.serverSendKey}.send`
+    const data = new URLSearchParams({
+      title: title,
+      desp: content
+    })
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: data.toString()
+    })
+    
+    const result = await response.json()
+    if (result.code === 0) {
+      console.log('📱 Server 酱推送成功')
+    } else {
+      console.log('⚠️ Server 酱推送失败:', result.message)
+    }
+  } catch (e) {
+    console.log('⚠️ Server 酱推送异常:', e.message)
+  }
+}
+
 // 主函数
 async function main() {
+  const logs = []
+  
   console.log('='.repeat(60))
   console.log('网易云音乐自动任务 (青龙面板版本)')
   console.log('='.repeat(60))
   
   for (const user of config.users) {
+    const userLogs = []
     console.log(`\n>>> 开始处理用户：${user.nickname}`)
     console.log('-'.repeat(60))
     
@@ -119,7 +154,9 @@ async function main() {
       const vipResult = await vip_info({ cookie: user.cookie })
       if (vipResult.body.code === 200) {
         const hasVip = vipResult.body.data.redVipLevel > 0
-        console.log(`[${user.nickname}] VIP 状态：${hasVip ? '已开通' : '未开通'}`)
+        const vipStatus = hasVip ? '已开通' : '未开通'
+        console.log(`[${user.nickname}] VIP 状态：${vipStatus}`)
+        userLogs.push(`VIP 状态：${vipStatus}`)
       }
       
       // 云贝签到（安卓端）
@@ -127,6 +164,10 @@ async function main() {
         console.log(`[${user.nickname}] 执行云贝签到（安卓端）...`)
         const yunbeiResult = await yunbei({ cookie: user.cookie })
         console.log(`[${user.nickname}] 云贝签到（安卓）结果:`, yunbeiResult.body)
+        if (yunbeiResult.body.code === 200) {
+          const shells = yunbeiResult.body.data.shells || 0
+          userLogs.push(`云贝签到：+${shells} 云贝`)
+        }
       }
       
       // 云贝签到（PC 端）
@@ -134,6 +175,9 @@ async function main() {
         console.log(`[${user.nickname}] 执行云贝签到（PC 端）...`)
         const yunbeiSignResult = await yunbei_sign({ cookie: user.cookie })
         console.log(`[${user.nickname}] 云贝签到（PC）结果:`, yunbeiSignResult.body)
+        if (yunbeiSignResult.body.code === 200 && !yunbeiSignResult.body.data.sign) {
+          userLogs.push(`云贝签到 (PC)：今日已签`)
+        }
       }
       
       // VIP 音乐任务
@@ -153,6 +197,7 @@ async function main() {
           console.log(`[${user.nickname}] ✓ 乐签打卡今日已完成`)
           console.log(`[${user.nickname}]   签到日期：${todayRecord.timeStr}`)
           console.log(`[${user.nickname}]   获得成长值：+${todayRecord.score}`)
+          userLogs.push(`VIP 乐签：+3 成长值`)
           if (todayRecord.songCover) {
             console.log(`[${user.nickname}]   签到歌曲：${todayRecord.songId}`)
             console.log(`[${user.nickname}]   歌曲封面：${todayRecord.songCover}`)
@@ -161,6 +206,7 @@ async function main() {
           const vipSignResult = await vip_sign({ cookie: user.cookie })
           if (vipSignResult.body.code === 200) {
             console.log(`[${user.nickname}] ✓ 乐签打卡成功`)
+            userLogs.push(`VIP 乐签：+3 成长值`)
             
             const signInfoAfter = await vip_sign_info({ cookie: user.cookie })
             const todayRecordAfter = signInfoAfter.body.data?.find(item => item.today && item.recordId > 0)
@@ -239,9 +285,11 @@ async function main() {
       }
       
       console.log(`[${user.nickname}] ✓ 任务完成`)
+      logs.push(`${user.nickname}: ${userLogs.join(' | ')}`)
       
     } catch (error) {
       console.error(`[${user.nickname}] ✗ 执行失败:`, error.message)
+      logs.push(`${user.nickname}: 执行失败 - ${error.message}`)
     }
     
     console.log('-'.repeat(60))
@@ -255,6 +303,13 @@ async function main() {
   console.log('\n' + '='.repeat(60))
   console.log('所有用户任务执行完成!')
   console.log('='.repeat(60))
+  
+  // 发送 Server 酱推送
+  if (config.serverSendKey && logs.length > 0) {
+    const title = '网易云音乐任务完成'
+    const content = logs.join('\n\n')
+    await sendServerChan(title, content)
+  }
 }
 
 // VIP 音乐任务函数

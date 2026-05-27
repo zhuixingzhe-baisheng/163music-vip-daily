@@ -108,7 +108,7 @@ async function main() {
         console.log(`[${user.nickname}] 执行 VIP 乐签打卡...`)
         
         const signInfo = await vip_sign_info({ cookie: user.cookie })
-        const todayRecord = signInfo.body.data?.find(item => item.today && item.score > 0)
+        const todayRecord = signInfo.body.data?.find(item => item.today && item.recordId > 0)
         
         if (todayRecord) {
           console.log(`[${user.nickname}] ✓ 乐签打卡今日已完成`)
@@ -124,7 +124,7 @@ async function main() {
             console.log(`[${user.nickname}] ✓ 乐签打卡成功`)
             
             const signInfoAfter = await vip_sign_info({ cookie: user.cookie })
-            const todayRecordAfter = signInfoAfter.body.data?.find(item => item.today && item.score > 0)
+            const todayRecordAfter = signInfoAfter.body.data?.find(item => item.today && item.recordId > 0)
             
             if (todayRecordAfter) {
               console.log(`[${user.nickname}]   签到日期：${todayRecordAfter.timeStr}`)
@@ -133,6 +133,8 @@ async function main() {
                 console.log(`[${user.nickname}]   签到歌曲：${todayRecordAfter.songId}`)
                 console.log(`[${user.nickname}]   歌曲封面：${todayRecordAfter.songCover}`)
               }
+            } else {
+              console.log(`[${user.nickname}]   成长值已到账，歌曲信息稍后更新`)
             }
           } else {
             console.log(`[${user.nickname}] ✗ 乐签打卡失败:`, vipSignResult.body.message || vipSignResult.body.code)

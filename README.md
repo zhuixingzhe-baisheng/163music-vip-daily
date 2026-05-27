@@ -41,6 +41,44 @@ npm install
 
 ## ⚙️ 配置说明
 
+### 方式 1: 使用环境变量（推荐，适用于 Linux 部署）
+
+**基本配置：**
+
+```bash
+# 设置 MUSIC_U cookie
+export NETEASE_MUSIC_U="MUSIC_U=你的 cookie 值"
+
+# 可选：设置用户昵称
+export NETEASE_NICKNAME="我的账号"
+
+# 可选：设置 Server 酱推送
+export SERVER_SENDKEY="SCTxxxxxxxx"
+
+# 可选：设置 PushPlus 推送
+export PUSHPLUS_TOKEN="你的 token 值"
+export PUSHPLUS_CHANNEL="wechat"  # 可选：wechat, wechatcp, corp, webhook, sms
+export PUSHPLUS_WEBHOOK="https://your-webhook.com/xxx"  # 当 channel 为 webhook 时填写
+```
+
+**运行脚本：**
+
+```bash
+node auto_tasks_enhanced.js
+```
+
+**永久配置（可选）：**
+
+将环境变量添加到 `~/.bashrc` 或 `~/.profile`：
+
+```bash
+echo 'export NETEASE_MUSIC_U="MUSIC_U=你的 cookie 值"' >> ~/.bashrc
+echo 'export SERVER_SENDKEY="SCTxxxxxxxx"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+### 方式 2: 使用配置文件
+
 1. **复制配置文件**
 
 ```bash
@@ -96,6 +134,27 @@ cp config_example.json config.json
 | `pushPlusChannel` | String | wechat | PushPlus 推送渠道 |
 | `pushPlusWebhook` | String | - | PushPlus webhook 地址 |
 
+### 环境变量说明
+
+**必须配置的环境变量：**
+
+| 变量名 | 说明 | 示例 |
+|--------|------|------|
+| `NETEASE_MUSIC_U` | 网易云音乐 MUSIC_U cookie | `MUSIC_U=xxxxx` |
+| `MUSIC_U` | 同上（替代名称） | `MUSIC_U=xxxxx` |
+
+**可选的环境变量：**
+
+| 变量名 | 说明 | 默认值 | 示例 |
+|--------|------|--------|------|
+| `NETEASE_NICKNAME` | 用户昵称 | 账号 1 | `我的账号` |
+| `SERVER_SENDKEY` | Server 酱 SendKey | - | `SCTxxxxxxxx` |
+| `SERVER_CHAN_SENDKEY` | 同上（替代名称） | - | `SCTxxxxxxxx` |
+| `PUSHPLUS_TOKEN` | PushPlus Token | - | `xxxxxxxxx` |
+| `PUSH_PLUS_TOKEN` | 同上（替代名称） | - | `xxxxxxxxx` |
+| `PUSHPLUS_CHANNEL` | PushPlus 推送渠道 | wechat | `wechat`, `wechatcp`, `corp`, `webhook`, `sms` |
+| `PUSHPLUS_WEBHOOK` | PushPlus webhook 地址 | - | `https://your-webhook.com/xxx` |
+
 ### 获取 Cookie
 
 1. 打开网易云音乐网页版 (https://music.163.com)
@@ -136,19 +195,46 @@ cp config_example.json config.json
 
 ## 🚀 使用方法
 
-### 方法 1: 直接运行（推荐）
+### 方法 1: 环境变量方式（推荐，适用于 Linux）
+
+```bash
+# 设置环境变量
+export NETEASE_MUSIC_U="MUSIC_U=你的 cookie 值"
+export SERVER_SENDKEY="SCTxxxxxxxx"      # 可选，Server 酱推送
+export PUSHPLUS_TOKEN="你的 token"        # 可选，PushPlus 推送
+
+# 运行脚本
+node auto_tasks_enhanced.js
+```
+
+**永久配置环境变量：**
+
+```bash
+# 添加到 ~/.bashrc
+cat >> ~/.bashrc << 'EOF'
+export NETEASE_MUSIC_U="MUSIC_U=你的 cookie 值"
+export SERVER_SENDKEY="SCTxxxxxxxx"
+export PUSHPLUS_TOKEN="你的 token"
+EOF
+
+# 使配置生效
+source ~/.bashrc
+```
+
+### 方法 2: 直接运行（配置文件方式）
 
 ```bash
 node auto_tasks_enhanced.js
 ```
 
-### 方法 2: 使用 PM2 后台运行
+### 方法 3: 使用 PM2 后台运行
 
 ```bash
 # 安装 PM2
 npm install -g pm2
 
-# 启动任务
+# 环境变量方式启动任务
+export NETEASE_MUSIC_U="MUSIC_U=你的 cookie 值"
 pm2 start auto_tasks_enhanced.js --name "netease-tasks"
 
 # 设置开机自启
@@ -156,15 +242,19 @@ pm2 startup
 pm2 save
 ```
 
-### 方法 3: 设置定时任务 (Cron)
+### 方法 4: 设置定时任务 (Cron)
+
+**环境变量方式：**
 
 ```bash
 # 编辑 crontab
 crontab -e
 
 # 添加定时任务（每天早上 8:00 执行）
-0 8 * * * /usr/bin/node /path/to/auto_tasks_enhanced.js >> /path/to/logs/netease.log 2>&1
+0 8 * * * cd /path/to/163music-vip-daily && export NETEASE_MUSIC_U="MUSIC_U=你的 cookie" && /usr/bin/node auto_tasks_enhanced.js >> /path/to/logs/netease.log 2>&1
 ```
+
+**配置文件方式：
 
 ## 📊 输出示例
 
@@ -222,16 +312,46 @@ crontab -e
 
 | 文件 | 用途 |
 |------|------|
-| `auto_tasks_enhanced.js` | **主脚本**（包含所有功能） |
+| `auto_tasks_enhanced.js` | **主脚本**（包含所有功能，支持环境变量配置） |
 | `package.json` | 项目配置和依赖 |
 | `config.json` | **配置文件**（需自行创建，包含敏感信息） |
 | `config_example.json` | 配置文件示例 |
 | `README.md` | 项目文档 |
 | `DEPLOY.md` | 快速部署指南 |
+| `DEPLOY_LINUX.md` | **Linux 环境变量部署指南** |
+| `deploy_linux.sh` | Linux 自动化部署脚本 |
 
 ## 🚀 部署方式
 
-### 方式一：本地运行
+### 方式一：Linux 环境变量部署（推荐）
+
+**快速部署：**
+
+```bash
+# 1. 克隆仓库
+git clone https://github.com/zhuixingzhe-baisheng/163music-vip-daily.git
+cd 163music-vip-daily
+
+# 2. 安装依赖
+npm install
+
+# 3. 设置环境变量
+export NETEASE_MUSIC_U="MUSIC_U=你的 cookie 值"
+
+# 4. 运行
+node auto_tasks_enhanced.js
+```
+
+**自动化部署脚本：**
+
+```bash
+# 下载并运行部署脚本
+bash deploy_linux.sh
+```
+
+详细部署指南请参考：[DEPLOY_LINUX.md](./DEPLOY_LINUX.md)
+
+### 方式二：本地运行（配置文件方式）
 
 ```bash
 # 克隆仓库
@@ -249,7 +369,7 @@ cp config_example.json config.json
 node auto_tasks_enhanced.js
 ```
 
-### 方式二：青龙面板
+### 方式三：青龙面板
 
 🐉 使用青龙面板请切换到 **[qinglong 分支](https://github.com/zhuixingzhe-baisheng/163music-vip-daily/tree/qinglong)**
 
@@ -266,6 +386,7 @@ node auto_tasks_enhanced.js
 
 ## 📄 相关文档
 
+- [DEPLOY_LINUX.md](./DEPLOY_LINUX.md) - **Linux 环境变量部署指南**
 - [DEPLOY.md](./DEPLOY.md) - 快速部署指南
 - [qinglong 分支](https://github.com/zhuixingzhe-baisheng/163music-vip-daily/tree/qinglong) - 青龙面板版本
 

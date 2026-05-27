@@ -33,37 +33,92 @@ const {
   event_del
 } = require('@neteasecloudmusicapienhanced/api')
 
-// 加载配置文件
+// 加载配置文件 - 支持环境变量和配置文件两种方式
 const configPath = path.join(__dirname, 'config.json')
 let config
 
-if (fs.existsSync(configPath)) {
-  const configData = JSON.parse(fs.readFileSync(configPath, 'utf8'))
-  config = {
-    users: configData.users || [],
-    enableYunbeiSign: configData.enableYunbeiSign !== false,
-    enableYunbeiSignPC: configData.enableYunbeiSignPC !== false,
-    enableVipSign: configData.enableVipSign !== false,
-    enableVipGrowthpoint: configData.enableVipGrowthpoint !== false,
-    showVipTaskList: configData.showVipTaskList !== false,
-    enableVipMusicTasks: configData.enableVipMusicTasks !== false,
-    vipMusicPlaylistId: configData.vipMusicPlaylistId || 8402996200,
-    vipMusicSongCount: configData.vipMusicSongCount || 3,
-    enableAutoPost: configData.enableAutoPost !== false,
-    deletePreviousPost: configData.deletePreviousPost !== false,
-    postPlaylistId: configData.postPlaylistId || 8402996200,
-    postSongCount: configData.postSongCount || 1,
-    // 推送配置
-    serverSendKey: configData.serverSendKey || '',
-    pushPlusToken: configData.pushPlusToken || '',
-    pushPlusChannel: configData.pushPlusChannel || 'wechat',
-    pushPlusWebhook: configData.pushPlusWebhook || ''
+// 从环境变量加载配置
+function loadConfigFromEnv() {
+  const musicU = process.env.NETEASE_MUSIC_U || process.env.MUSIC_U
+  const serverSendKey = process.env.SERVER_SENDKEY || process.env.SERVER_CHAN_SENDKEY
+  const pushPlusToken = process.env.PUSHPLUS_TOKEN || process.env.PUSH_PLUS_TOKEN
+  const pushPlusChannel = process.env.PUSHPLUS_CHANNEL || 'wechat'
+  const pushPlusWebhook = process.env.PUSHPLUS_WEBHOOK || ''
+  
+  if (!musicU) {
+    return null
   }
-} else {
-  console.error('错误：未找到 config.json 配置文件')
-  console.error('请复制 config_example.json 为 config.json 并配置你的 MUSIC_U cookie')
-  console.error('示例：cp config_example.json config.json')
-  process.exit(1)
+  
+  return {
+    users: [
+      {
+        nickname: process.env.NETEASE_NICKNAME || '账号 1',
+        cookie: musicU.startsWith('MUSIC_U=') ? musicU : `MUSIC_U=${musicU}`
+      }
+    ],
+    enableYunbeiSign: true,
+    enableYunbeiSignPC: true,
+    enableVipSign: true,
+    enableVipGrowthpoint: true,
+    showVipTaskList: true,
+    enableVipMusicTasks: true,
+    vipMusicPlaylistId: 8402996200,
+    vipMusicSongCount: 3,
+    enableAutoPost: true,
+    deletePreviousPost: true,
+    postPlaylistId: 8402996200,
+    postSongCount: 1,
+    serverSendKey: serverSendKey || '',
+    pushPlusToken: pushPlusToken || '',
+    pushPlusChannel: pushPlusChannel,
+    pushPlusWebhook: pushPlusWebhook
+  }
+}
+
+// 尝试从环境变量加载配置
+config = loadConfigFromEnv()
+
+// 如果环境变量未配置，则从配置文件加载
+if (!config) {
+  if (fs.existsSync(configPath)) {
+    const configData = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+    config = {
+      users: configData.users || [],
+      enableYunbeiSign: configData.enableYunbeiSign !== false,
+      enableYunbeiSignPC: configData.enableYunbeiSignPC !== false,
+      enableVipSign: configData.enableVipSign !== false,
+      enableVipGrowthpoint: configData.enableVipGrowthpoint !== false,
+      showVipTaskList: configData.showVipTaskList !== false,
+      enableVipMusicTasks: configData.enableVipMusicTasks !== false,
+      vipMusicPlaylistId: configData.vipMusicPlaylistId || 8402996200,
+      vipMusicSongCount: configData.vipMusicSongCount || 3,
+      enableAutoPost: configData.enableAutoPost !== false,
+      deletePreviousPost: configData.deletePreviousPost !== false,
+      postPlaylistId: configData.postPlaylistId || 8402996200,
+      postSongCount: configData.postSongCount || 1,
+      // 推送配置
+      serverSendKey: configData.serverSendKey || '',
+      pushPlusToken: configData.pushPlusToken || '',
+      pushPlusChannel: configData.pushPlusChannel || 'wechat',
+      pushPlusWebhook: configData.pushPlusWebhook || ''
+    }
+  } else {
+    console.error('错误：未找到 config.json 配置文件，也未设置环境变量')
+    console.error('')
+    console.error('使用方法:')
+    console.error('  方式 1 - 使用环境变量:')
+    console.error('    export NETEASE_MUSIC_U="MUSIC_U=你的 cookie 值"')
+    console.error('    export SERVER_SENDKEY="你的 Server 酱 SendKey"')
+    console.error('    export PUSHPLUS_TOKEN="你的 PushPlus Token"')
+    console.error('    node auto_tasks_enhanced.js')
+    console.error('')
+    console.error('  方式 2 - 使用配置文件:')
+    console.error('    cp config_example.json config.json')
+    console.error('    编辑 config.json 填入 MUSIC_U cookie')
+    console.error('    node auto_tasks_enhanced.js')
+    console.error('')
+    process.exit(1)
+  }
 }
 
 // 数据记录文件路径

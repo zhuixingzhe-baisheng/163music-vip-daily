@@ -193,13 +193,21 @@ async function sendPushPlus(title, content) {
 
 // 主函数
 async function main() {
+  const startTime = new Date()
+  
   console.log('='.repeat(60))
   console.log('网易云音乐自动任务 (API Enhanced 版本)')
   console.log('='.repeat(60))
   
+  runLogs.push(`📅 执行时间：${startTime.toLocaleString('zh-CN')}`)
+  runLogs.push('')
+  
   for (const user of config.users) {
     console.log(`\n>>> 开始处理用户：${user.nickname}`)
     console.log('-'.repeat(60))
+    
+    runLogs.push(`👤 用户：${user.nickname}`)
+    runLogs.push('-'.repeat(40))
     
     try {
       // 检查 VIP 状态
@@ -207,7 +215,9 @@ async function main() {
       const vipResult = await vip_info({ cookie: user.cookie })
       if (vipResult.body.code === 200) {
         const hasVip = vipResult.body.data.redVipLevel > 0
-        console.log(`[${user.nickname}] VIP 状态：${hasVip ? '已开通' : '未开通'}`)
+        const vipStatus = hasVip ? '已开通' : '未开通'
+        console.log(`[${user.nickname}] VIP 状态：${vipStatus}`)
+        runLogs.push(`VIP 状态：${vipStatus}`)
       }
       
       // 云贝签到（安卓端）
@@ -215,6 +225,12 @@ async function main() {
         console.log(`[${user.nickname}] 执行云贝签到（安卓端）...`)
         const yunbeiResult = await yunbei({ cookie: user.cookie })
         console.log(`[${user.nickname}] 云贝签到（安卓）结果:`, yunbeiResult.body)
+        if (yunbeiResult.body.code === 200) {
+          const shells = yunbeiResult.body.data?.shells || 0
+          runLogs.push(`☁️ 云贝签到 (安卓): 获得 ${shells} 云贝`)
+        } else {
+          runLogs.push(`☁️ 云贝签到 (安卓): ${yunbeiResult.body.message || '失败'}`)
+        }
       }
       
       // 云贝签到（PC 端）
@@ -222,12 +238,19 @@ async function main() {
         console.log(`[${user.nickname}] 执行云贝签到（PC 端）...`)
         const yunbeiSignResult = await yunbei_sign({ cookie: user.cookie })
         console.log(`[${user.nickname}] 云贝签到（PC）结果:`, yunbeiSignResult.body)
+        if (yunbeiSignResult.body.code === 200) {
+          const shells = yunbeiSignResult.body.data?.shells || 0
+          runLogs.push(`☁️ 云贝签到 (PC): 获得 ${shells} 云贝`)
+        } else {
+          runLogs.push(`☁️ 云贝签到 (PC): ${yunbeiSignResult.body.message || '失败'}`)
+        }
       }
       
       // VIP 音乐任务
       if (config.enableVipMusicTasks) {
         console.log(`[${user.nickname}] 执行 VIP 音乐任务...`)
-        await runVipMusicTasks(user.cookie, config.vipMusicPlaylistId, config.vipMusicSongCount)
+        runLogs.push(`🎵 VIP 音乐任务：执行中...`)
+        await runVipMusicTasks(user.cookie, config.vipMusicPlaylistId, config.vipMusicSongCount, runLogs)
       }
       
       // VIP 乐签打卡
@@ -241,9 +264,9 @@ async function main() {
           console.log(`[${user.nickname}] ✓ 乐签打卡今日已完成`)
           console.log(`[${user.nickname}]   签到日期：${todayRecord.timeStr}`)
           console.log(`[${user.nickname}]   获得成长值：+${todayRecord.score}`)
+          runLogs.push(`🎫 VIP 乐签：已完成 (+${todayRecord.score} 成长值)` || '已完成')
           if (todayRecord.songCover) {
-            console.log(`[${user.nickname}]   签到歌曲：${todayRecord.songId}`)
-            console.log(`[${user.nickname}]   歌曲封面：${todayRecord.songCover}`)
+            runLogs.push(`   签到歌曲：${todayRecord.songId}`)
           }
         } else {
           const vipSignResult = await vip_sign({ cookie: user.cookie })
@@ -256,18 +279,18 @@ async function main() {
             if (todayRecordAfter) {
               console.log(`[${user.nickname}]   签到日期：${todayRecordAfter.timeStr}`)
               console.log(`[${user.nickname}]   获得成长值：+${todayRecordAfter.score}`)
-              if (todayRecordAfter.songCover) {
-                console.log(`[${user.nickname}]   签到歌曲：${todayRecordAfter.songId}`)
-                console.log(`[${user.nickname}]   歌曲封面：${todayRecordAfter.songCover}`)
-              }
+              runLogs.push(`🎫 VIP 乐签：打卡成功 (+${todayRecordAfter.score} 成长值)`)
             } else {
-              console.log(`[${user.nickname}]   成长值已到账，歌曲信息稍后更新`)
+              runLogs.push(`🎫 VIP 乐签：打卡成功`)
             }
           } else {
             console.log(`[${user.nickname}] ✗ 乐签打卡失败:`, vipSignResult.body.message || vipSignResult.body.code)
+            runLogs.push(`🎫 VIP 乐签：失败 - ${vipSignResult.body.message || vipSignResult.body.code}`)
           }
         }
       }
+      
+      runLogs.push('')
       
       // 获取 VIP 任务列表
       if (config.showVipTaskList) {
@@ -312,11 +335,14 @@ async function main() {
             if (growthResult.body.code === 200) {
               const total = growthResult.body.data.total || 0
               console.log(`[${user.nickname}] ✓ 领取成长值成功，总计 +${total}`)
+              runLogs.push(`💰 领取成长值：+${total}`)
             } else {
               console.log(`[${user.nickname}] ✗ 领取成长值失败:`, growthResult.body.message || growthResult.body.code)
+              runLogs.push(`💰 领取成长值：失败`)
             }
           } else {
             console.log(`[${user.nickname}] 暂无可领取的成长值`)
+            runLogs.push(`💰 领取成长值：无可领取`)
           }
         }
       }
@@ -327,9 +353,11 @@ async function main() {
       }
       
       console.log(`[${user.nickname}] ✓ 任务完成`)
+      runLogs.push(`✅ 任务完成`)
       
     } catch (error) {
       console.error(`[${user.nickname}] ✗ 执行失败:`, error.message)
+      runLogs.push(`❌ 执行失败：${error.message}`)
     }
     
     console.log('-'.repeat(60))
@@ -340,9 +368,15 @@ async function main() {
     }
   }
   
+  const endTime = new Date()
+  const duration = ((endTime - startTime) / 1000).toFixed(1)
+  
   console.log('\n' + '='.repeat(60))
   console.log('所有用户任务执行完成!')
   console.log('='.repeat(60))
+  
+  runLogs.push('')
+  runLogs.push(`⏱️ 总耗时：${duration}秒`)
 }
 
 // 延时函数
@@ -351,7 +385,7 @@ function sleep(ms) {
 }
 
 // VIP 音乐任务函数
-async function runVipMusicTasks(cookie, playlistId, songCount) {
+async function runVipMusicTasks(cookie, playlistId, songCount, logs = []) {
   try {
     // 先获取用户信息获取 uid
     const userProfile = await vip_info({ cookie })
@@ -363,12 +397,14 @@ async function runVipMusicTasks(cookie, playlistId, songCount) {
     const playlist = await playlist_detail({ id: playlistId })
     if (playlist.body.code !== 200) {
       console.log(`  ✗ 获取歌单失败`)
+      logs.push('  ✗ VIP 音乐任务：获取歌单失败')
       return
     }
     
     const tracks = playlist.body.playlist.tracks || []
     if (tracks.length === 0) {
       console.log(`  ✗ 歌单为空`)
+      logs.push('  ✗ VIP 音乐任务：歌单为空')
       return
     }
     
@@ -385,6 +421,8 @@ async function runVipMusicTasks(cookie, playlistId, songCount) {
       console.log(`    ${i + 1}. ${song.name} - ${song.artists} (${duration}分钟)`)
     })
     console.log()
+    
+    let successCount = 0
     
     // 逐首执行：收藏→播放→等待→取消收藏
     for (let i = 0; i < songs.length; i++) {
@@ -418,6 +456,7 @@ async function runVipMusicTasks(cookie, playlistId, songCount) {
         if (scrobbleResult.body.code === 200) {
           const timeStr = (playTime / 60).toFixed(2)
           console.log(`    ✓ 听歌记录已上传 (${timeStr}分钟)`)
+          successCount++
         }
       } catch (e) {
         console.log(`    ✗ 上传失败：${e.message}`)
@@ -466,15 +505,19 @@ async function runVipMusicTasks(cookie, playlistId, songCount) {
         })
         if (rewardResult.body.code === 200 && rewardResult.body.data) {
           console.log(`    ✓ 领取成功 +${likeTask.growthPoint}`)
+          logs.push(`🎵 VIP 音乐任务：完成 (+${likeTask.growthPoint} 成长值)` || '完成')
         }
       } else {
         console.log(`    ⊘ 无成长值可领取`)
+        logs.push(`🎵 VIP 音乐任务：${successCount}/${songs.length} 首歌曲已处理`)
       }
     }
     
     console.log('  ✓ VIP 音乐任务完成\n')
+    logs.push('🎵 VIP 音乐任务：完成')
   } catch (error) {
     console.log(`  ✗ VIP 音乐任务失败：${error.message}\n`)
+    logs.push(`🎵 VIP 音乐任务：失败 - ${error.message}`)
   }
 }
 
@@ -556,6 +599,7 @@ async function autoPostEvent(cookie, nickname) {
     console.log(`  ⊘ 今日 (${today}) 已发布动态，跳过`)
     console.log(`    上次发布：${userRecord.lastPostSongName || '未知歌曲'}`)
     saveUserData(userData)
+    runLogs.push('📝 自动动态：今日已发布，跳过')
     return
   }
 
@@ -569,6 +613,7 @@ async function autoPostEvent(cookie, nickname) {
 
     if (playlist.body.code !== 200) {
       console.log(`  ✗ 获取歌单失败`)
+      runLogs.push('📝 自动动态：获取歌单失败')
       return
     }
 
@@ -577,6 +622,7 @@ async function autoPostEvent(cookie, nickname) {
 
     if (tracks.length === 0) {
       console.log(`  ✗ 歌单为空`)
+      runLogs.push('📝 自动动态：歌单为空')
       return
     }
 
@@ -620,39 +666,46 @@ async function autoPostEvent(cookie, nickname) {
       console.log(`    歌曲：${songName}`)
       console.log(`    日期：${today}`)
 
+      runLogs.push(`📝 自动动态：发布成功 - ${songName}`)
       saveUserData(userData)
     } else {
       console.log(`  ✗ 发布失败：${postResult.body.message || postResult.body.code}`)
+      runLogs.push(`📝 自动动态：发布失败 - ${postResult.body.message || postResult.body.code}`)
     }
 
     await sleep(1500)
   } catch (e) {
     console.log(`  ✗ 发布异常：${e.message}`)
+    runLogs.push(`📝 自动动态：异常 - ${e.message}`)
   }
 
   saveUserData(userData)
 }
 
+// 收集运行日志
+let runLogs = []
+
 // 错误处理
 process.on('unhandledRejection', (reason, promise) => {
   console.error('未处理的 Promise 拒绝:', reason)
+  runLogs.push(`❌ 未处理错误：${reason}`)
 })
 
 // 运行主函数
 async function runWithPush() {
-  const results = []
+  runLogs = []
   
   try {
     await main()
-    results.push('✅ 所有任务执行完成')
+    runLogs.push('✅ 所有任务执行完成')
   } catch (error) {
     console.error('主程序错误:', error)
-    results.push(`❌ 执行失败：${error.message}`)
+    runLogs.push(`❌ 执行失败：${error.message}`)
   }
   
-  // 推送通知
+  // 推送通知（发送运行日志）
   const title = '网易云音乐任务执行报告'
-  const content = results.join('\n') + '\n\n执行时间：' + new Date().toLocaleString('zh-CN')
+  const content = runLogs.join('\n') + '\n\n执行时间：' + new Date().toLocaleString('zh-CN')
   
   await Promise.all([
     sendServerChan(title, content),

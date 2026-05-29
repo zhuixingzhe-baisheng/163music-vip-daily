@@ -384,6 +384,38 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
+// 提交播放状态接口
+async function play_state_submit(cookie, resourceId, resourceType = 'song', progress = 0, playMode = 'list_loop', sessionId = null) {
+  if (!sessionId) {
+    sessionId = `SESSION_${Date.now()}_${resourceId}`
+  }
+  
+  const playStateSubmitReq = JSON.stringify({
+    resource: {
+      id: String(resourceId),
+      type: resourceType
+    },
+    progress: progress,
+    sessionId: sessionId,
+    playMode: playMode
+  })
+  
+  const baseUrl = 'https://music.163.com/api/relay/play/state/submit'
+  
+  const response = await fetch(baseUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Cookie': cookie
+    },
+    body: new URLSearchParams({
+      playStateSubmitReq: playStateSubmitReq
+    }).toString()
+  })
+  
+  return await response.json()
+}
+
 // VIP 音乐任务函数
 async function runVipMusicTasks(cookie, playlistId, songCount, logs = []) {
   try {
@@ -424,9 +456,12 @@ async function runVipMusicTasks(cookie, playlistId, songCount, logs = []) {
     
     let successCount = 0
     
-    // 逐首执行：收藏→播放→等待→取消收藏
+    // 逐首执行：收藏→提交播放状态 (初)→等待→提交播放状态 (终)→上传听歌记录→取消收藏
     for (let i = 0; i < songs.length; i++) {
       const song = songs[i]
+      const playTime = Math.floor(song.dt / 1000)
+      const sessionId = `SESSION_${Date.now()}_${song.id}`
+      
       console.log(`  [歌曲 ${i + 1}/${songs.length}] ${song.name} - ${song.artists}`)
       console.log('  ' + '-'.repeat(40))
       
@@ -443,10 +478,54 @@ async function runVipMusicTasks(cookie, playlistId, songCount, logs = []) {
       
       await sleep(1000)
       
-      // 2. 上传听歌记录
-      console.log('  [2] 上传听歌记录...')
+      // 2. 提交播放状态（初始 progress=0）
+      console.log('  [2] 提交播放状态 (初始)...')
       try {
-        const playTime = Math.floor(song.dt / 1000)
+        const playStateResult = await play_state_submit(
+          cookie,
+          song.id,
+          'song',
+          0,
+          'list_loop',
+          sessionId
+        )
+        if (playStateResult.code === 200) {
+          console.log(`    ✓ 播放状态已提交 (sessionId: ${sessionId})`)
+        }
+      } catch (e) {
+        console.log(`    ✗ 提交失败：${e.message}`)
+      }
+      
+      await sleep(1000)
+      
+      // 3. 等待音乐时长（模拟播放）
+      const waitTime = playTime * 1000
+      console.log(`  [3] 模拟播放中... (等待 ${Math.floor(waitTime / 1000)} 秒)`)
+      await sleep(waitTime)
+      
+      // 4. 提交播放状态（最终 progress=歌曲时长）
+      console.log('  [4] 提交播放状态 (完成)...')
+      try {
+        const finalResult = await play_state_submit(
+          cookie,
+          song.id,
+          'song',
+          playTime,
+          'list_loop',
+          sessionId
+        )
+        if (finalResult.code === 200) {
+          console.log(`    ✓ 播放完成进度已更新 (progress: ${playTime}秒)`)
+        }
+      } catch (e) {
+        console.log(`    ✗ 提交失败：${e.message}`)
+      }
+      
+      await sleep(1000)
+      
+      // 5. 上传听歌记录
+      console.log('  [5] 上传听歌记录...')
+      try {
         const scrobbleResult = await scrobble({
           cookie,
           id: song.id,
@@ -464,13 +543,8 @@ async function runVipMusicTasks(cookie, playlistId, songCount, logs = []) {
       
       await sleep(1000)
       
-      // 3. 等待 30-60 秒（随机）
-      const waitTime = Math.floor(Math.random() * 30000) + 30000
-      console.log(`  [3] 等待 ${Math.floor(waitTime / 1000)} 秒...`)
-      await sleep(waitTime)
-      
-      // 4. 取消收藏
-      console.log('  [4] 取消收藏...')
+      // 6. 取消收藏
+      console.log('  [6] 取消收藏...')
       try {
         const unlikeResult = await song_like({ 
           cookie, 
@@ -491,7 +565,7 @@ async function runVipMusicTasks(cookie, playlistId, songCount, logs = []) {
     }
     
     // 检查并领取成长值
-    console.log('  [5] 检查并领取成长值...')
+    console.log('  [7] 检查并领取成长值...')
     const tasks = await vip_tasks({ cookie })
     if (tasks.body.code === 200) {
       const likeTask = tasks.body.data.taskList

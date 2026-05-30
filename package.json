@@ -19,10 +19,9 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@neteasecloudmusicapienhanced/api": "latest",
+    "@neteasecloudmusicapienhanced/api": "^4.34.3",
     "node-cron": "^3.0.3"
   },
-  "devDependencies": {},
   "engines": {
     "node": ">=18.0.0"
   }

@@ -22,6 +22,7 @@ const {
   yunbei_sign,
   vip_sign,
   vip_sign_info,
+  vip_sign_detail,
   vip_tasks,
   vip_growthpoint_get,
   musician_tasks,
@@ -32,6 +33,24 @@ const {
   share_resource,
   event_del
 } = require('@neteasecloudmusicapienhanced/api')
+
+// 获取新版 VIP 任务列表 (直接 HTTP 调用，绕过 xeapi 加密)
+async function getVipTasksV1(cookie, userId = '') {
+  const data = {}
+  if (userId) data.userId = userId
+  
+  const response = await fetch('https://interface.music.163.com/api/middle/vip/mission/user/progress/list', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Cookie': cookie,
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    },
+    body: new URLSearchParams(data).toString()
+  })
+  
+  return await response.json()
+}
 
 // 加载配置文件 - 支持环境变量和配置文件两种方式
 const configPath = path.join(__dirname, 'config.json')
@@ -257,6 +276,7 @@ async function main() {
       if (config.enableVipSign) {
         console.log(`[${user.nickname}] 执行 VIP 乐签打卡...`)
         
+        // 获取今日打卡信息
         const signInfo = await vip_sign_info({ cookie: user.cookie })
         const todayRecord = signInfo.body.data?.find(item => item.today && item.recordId > 0)
         
@@ -264,7 +284,7 @@ async function main() {
           console.log(`[${user.nickname}] ✓ 乐签打卡今日已完成`)
           console.log(`[${user.nickname}]   签到日期：${todayRecord.timeStr}`)
           console.log(`[${user.nickname}]   获得成长值：+${todayRecord.score}`)
-          runLogs.push(`🎫 VIP 乐签：已完成 (+${todayRecord.score} 成长值)` || '已完成')
+          runLogs.push(`🎫 VIP 乐签：已完成 (+${todayRecord.score} 成长值)`)
           if (todayRecord.songCover) {
             runLogs.push(`   签到歌曲：${todayRecord.songId}`)
           }
@@ -280,34 +300,63 @@ async function main() {
               console.log(`[${user.nickname}]   签到日期：${todayRecordAfter.timeStr}`)
               console.log(`[${user.nickname}]   获得成长值：+${todayRecordAfter.score}`)
               runLogs.push(`🎫 VIP 乐签：打卡成功 (+${todayRecordAfter.score} 成长值)`)
+              if (todayRecordAfter.songCover) {
+                runLogs.push(`   签到歌曲：${todayRecordAfter.songName || todayRecordAfter.songId}`)
+              }
             } else {
               runLogs.push(`🎫 VIP 乐签：打卡成功`)
             }
+          } else if (vipSignResult.body.code === -2) {
+            console.log(`[${user.nickname}] ✓ 乐签打卡今日已完成（重复签到提示）`)
+            runLogs.push(`🎫 VIP 乐签：已完成`)
           } else {
             console.log(`[${user.nickname}] ✗ 乐签打卡失败:`, vipSignResult.body.message || vipSignResult.body.code)
             runLogs.push(`🎫 VIP 乐签：失败 - ${vipSignResult.body.message || vipSignResult.body.code}`)
+          }
+        }
+        
+        // 获取打卡详情（获取最近一次打卡的详细信息）
+        const signDetail = await vip_sign_detail({ cookie: user.cookie, timestamp: Date.now() })
+        if (signDetail.body.code === 200 && signDetail.body.data) {
+          if (signDetail.body.data.records && signDetail.body.data.records.length > 0) {
+            const lastSign = signDetail.body.data.records[0]
+            console.log(`[${user.nickname}] 📊 最近打卡详情：`)
+            console.log(`[${user.nickname}]   日期：${lastSign.timeStr}`)
+            console.log(`[${user.nickname}]   歌曲：${lastSign.songName || '未知'}`)
+            console.log(`[${user.nickname}]   成长值：+${lastSign.score || 0}`)
+            console.log(`[${user.nickname}]   状态：${lastSign.isReceived ? '已领取' : '未领取'}`)
           }
         }
       }
       
       runLogs.push('')
       
-      // 获取 VIP 任务列表
+      // 获取 VIP 任务列表（新版 /vip/task/v1）
       if (config.showVipTaskList) {
-        console.log(`[${user.nickname}] 获取 VIP 任务列表...`)
-        const vipTasksResult = await vip_tasks({ cookie: user.cookie })
-        if (vipTasksResult.body.code === 200) {
+        console.log(`[${user.nickname}] 获取 VIP 任务列表 (/vip/task/v1)...`)
+        const vipTasksV1Result = await getVipTasksV1(user.cookie, user.id || '')
+        if (vipTasksV1Result.code === 200 && vipTasksV1Result.data) {
           console.log(`[${user.nickname}] = VIP 任务列表 =`)
-          for (const group of vipTasksResult.body.data.taskList) {
-            for (const task of group.taskItems) {
-              const name = task.name || task.description
-              if (name) {
-                console.log(`[${user.nickname}] ${name} | 进度：${task.currentProgress}/${task.targetWorth} | 成长值：+${task.growthPoint}`)
-              }
+          const taskList = Array.isArray(vipTasksV1Result.data) ? vipTasksV1Result.data : (vipTasksV1Result.data.missionList || [])
+          if (taskList.length > 0) {
+            for (const task of taskList) {
+              const name = task.name || task.title || task.missionTitle || task.basicMissionDTO?.name || '未知任务'
+              const progress = task.progress || task.currentPeriodCompleteNum || 0
+              const target = task.target || task.missionTarget || 1
+              const reward = task.reward || task.rewardGrowthPoint || task.basicMissionDTO?.rewardGrowthPoint || 0
+              const isCompleted = task.isReceived || task.status === 'COMPLETED' || task.missionStatus === 50
+              const canReceive = task.canReceive || task.canReceiveGrowthPoint
+              console.log(`[${user.nickname}]   ${name}`)
+              console.log(`      进度：${progress}/${target} | 奖励：${reward} 成长值 | 状态：${isCompleted ? '✓ 已完成' : '○ 未完成'}${canReceive ? ' [可领取]' : ''}`)
             }
+          } else {
+            console.log(`[${user.nickname}]   暂无任务数据`)
           }
+        } else {
+          console.log(`[${user.nickname}] 获取 VIP 任务失败：`, vipTasksV1Result.message || vipTasksV1Result.code)
         }
       }
+      runLogs.push('')
       
       // 领取 VIP 成长值
       if (config.enableVipGrowthpoint) {

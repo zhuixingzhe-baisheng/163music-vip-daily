@@ -23,8 +23,8 @@ function executeTasks(config, executionId) {
     const results = []
     const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19)
     
-    console.log('收到执行请求，配置数据:', JSON.stringify(config, null, 2))
-    console.log('账号列表:', config.users)
+    console.log('执行任务函数收到 config.users:', config.users)
+    console.log('账号数量:', config.users ? config.users.length : 0)
     
     const startLog = {
       type: 'start',
@@ -218,13 +218,20 @@ const server = http.createServer(async (req, res) => {
     
     req.on('end', async () => {
       try {
-        const config = JSON.parse(body)
+        const requestData = JSON.parse(body)
+        // 前端发送的格式是 { config: {...} }，所以需要解包
+        const config = requestData.config || requestData
+        
+        console.log('收到执行请求，完整数据:', JSON.stringify(requestData, null, 2))
+        console.log('解包后的配置:', JSON.stringify(config, null, 2))
+        
         const result = await executeTasks(config, currentExecutionId)
         
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify(result))
       } catch (error) {
         currentExecutionId = null
+        console.error('执行出错:', error)
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ success: false, message: error.message }))
       }

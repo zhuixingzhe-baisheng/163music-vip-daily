@@ -1,5 +1,6 @@
 # 依赖目录
 node_modules/
+frontend/node_modules/
 
 # 日志文件
 logs/
@@ -12,6 +13,7 @@ logs/
 
 # 配置文件（包含敏感信息）
 config.json
+logs.json
 
 # 用户数据文件（包含敏感信息）
 user_data.json

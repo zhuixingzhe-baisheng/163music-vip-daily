@@ -6,7 +6,10 @@
   "scripts": {
     "start": "node auto_tasks_enhanced.js",
     "dev": "node --watch auto_tasks_enhanced.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "frontend": "cd frontend && npm run dev",
+    "api": "node api-server.js",
+    "dev:all": "concurrently \"npm run api\" \"npm run frontend\""
   },
   "keywords": [
     "netease",

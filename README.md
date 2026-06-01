@@ -5,7 +5,45 @@
 
 基于 **API Enhanced** 的网易云音乐自动任务工具，支持云贝签到、VIP 乐签打卡、VIP 成长值领取、VIP 音乐任务等功能。
 
+> 🎉 **新功能：可视化 Web 管理界面已上线！** 无需配置，直接在浏览器中管理任务和账号。详见 [Web 管理界面](#-web-管理界面)
+
 > 🐉 **使用青龙面板？** 请切换到 [qinglong 分支](https://github.com/zhuixingzhe-baisheng/163music-vip-daily/tree/qinglong)
+
+---
+
+## 🌐 Web 管理界面
+
+### 快速启动
+
+```bash
+# 方式 1: 同时启动前端和 API 服务（推荐）
+npm install -g concurrently
+npm run dev:all
+
+# 方式 2: 仅启动前端
+cd frontend && npm run dev
+```
+
+访问：**http://localhost:3000**
+
+### 功能特性
+
+- 👤 **多账号管理** - 可视化添加/删除网易云音乐账号
+- ⚙️ **任务配置** - 一键切换任务开关，实时保存配置
+- 📋 **执行日志** - 查看任务执行历史和详细状态
+- 🔧 **配置导入导出** - 方便备份和迁移配置
+- 📱 **消息推送配置** - Server 酱、PushPlus 可视化配置
+
+### 界面预览
+
+| 页面 | 功能 |
+|------|------|
+| 首页 | 项目概览、快捷操作入口 |
+| 账号配置 | 添加/删除账号、Cookie 获取教程、配置导入导出 |
+| 任务管理 | 7 个任务开关、VIP 高级参数、推送渠道配置 |
+| 执行日志 | 历史记录、执行详情、日志导出 |
+
+详细说明请参考 [frontend/README.md](./frontend/README.md)
 
 ---
 
@@ -213,6 +251,8 @@ crontab -e
 | `config_example.json` | 配置文件示例 |
 | `DEPLOY_LINUX.md` | Linux 环境变量部署指南 |
 | `deploy_linux.sh` | Linux 自动化部署脚本 |
+| `frontend/` | Web 管理界面源码（Vue 3 + Vite） |
+| `api-server.js` | 前端 API 服务器 |
 
 ---
 
@@ -268,6 +308,7 @@ crontab -e
 
 ## 📄 相关文档
 
+- [frontend/README.md](./frontend/README.md) - Web 管理界面使用说明
 - [DEPLOY_LINUX.md](./DEPLOY_LINUX.md) - Linux 环境变量部署指南
 - [DEPLOY.md](./DEPLOY.md) - 快速部署指南
 - [qinglong 分支](https://github.com/zhuixingzhe-baisheng/163music-vip-daily/tree/qinglong) - 青龙面板版本
@@ -283,5 +324,5 @@ MIT
 
 ---
 
-**最后更新**: 2026-05-27  
-**维护状态**: ✅ 正常维护
+**最后更新**: 2026-06-01  
+**维护状态**: ✅ 正常维护（含 Web 管理界面）

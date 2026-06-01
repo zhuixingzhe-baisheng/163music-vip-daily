@@ -1,10 +1,28 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useConfigStore } from '../stores/config'
 
 const configStore = useConfigStore()
 const errorMsg = ref('')
 const successMsg = ref('')
+const currentChannel = ref('')
+
+// 初始化时根据已有配置设置当前渠道
+onMounted(() => {
+  if (configStore.settings.serverSendKey) {
+    currentChannel.value = 'server'
+  } else if (configStore.settings.pushplusToken) {
+    currentChannel.value = configStore.settings.pushplusChannel || 'wechat'
+  }
+})
+
+const onChannelChange = () => {
+  // 切换渠道时，更新 pushplusChannel 设置
+  if (currentChannel.value !== 'server') {
+    configStore.updateSetting('pushplusChannel', currentChannel.value)
+  }
+  saveSettings()
+}
 
 const clearMessages = () => {
   setTimeout(() => {
@@ -126,7 +144,21 @@ const saveSettings = () => {
     <div class="card">
       <h2>消息推送配置</h2>
       <div class="advanced-settings">
-        <div class="form-group">
+        <div class="form-group full-width">
+          <label>推送渠道</label>
+          <select v-model="currentChannel" @change="onChannelChange">
+            <option value="">不使用推送</option>
+            <option value="server">Server 酱</option>
+            <option value="wechat">微信公众号 (PushPlus)</option>
+            <option value="wechatcp">企业微信 (PushPlus)</option>
+            <option value="corp">企业微信 (PushPlus)</option>
+            <option value="sms">短信 (PushPlus)</option>
+            <option value="webhook">Webhook (PushPlus)</option>
+          </select>
+        </div>
+
+        <!-- Server 酱配置 -->
+        <div v-if="currentChannel === 'server'" class="form-group full-width">
           <label>Server 酱 SendKey</label>
           <input 
             type="text" 
@@ -136,7 +168,9 @@ const saveSettings = () => {
           />
           <small class="help-text">以 SCT 开头的字符串，例如：SCT12345</small>
         </div>
-        <div class="form-group">
+
+        <!-- PushPlus 配置 -->
+        <div v-if="['wechat', 'wechatcp', 'corp', 'sms', 'webhook'].includes(currentChannel)" class="form-group full-width">
           <label>PushPlus Token</label>
           <input 
             type="text" 
@@ -146,25 +180,17 @@ const saveSettings = () => {
           />
           <small class="help-text">PushPlus 推送令牌，长度至少 10 位</small>
         </div>
-        <div class="form-group">
-          <label>PushPlus 推送渠道</label>
-          <select v-model="configStore.settings.pushplusChannel" @change="saveSettings">
-            <option value="wechat">微信公众号</option>
-            <option value="wechatcp">企业微信</option>
-            <option value="corp">企业微信</option>
-            <option value="webhook">Webhook</option>
-            <option value="sms">短信</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>PushPlus Webhook</label>
+
+        <!-- Webhook 地址 -->
+        <div v-if="currentChannel === 'webhook'" class="form-group full-width">
+          <label>Webhook 地址</label>
           <input 
             type="text" 
             v-model="configStore.settings.pushplusWebhook"
-            placeholder="自定义 Webhook 地址"
+            placeholder="https://your-webhook-url.com/notify"
             @blur="saveSettings"
           />
-          <small class="help-text">仅在渠道为 webhook 时填写</small>
+          <small class="help-text">自定义 Webhook 回调地址</small>
         </div>
       </div>
     </div>
@@ -224,9 +250,13 @@ const saveSettings = () => {
 }
 
 .advanced-settings {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 1rem;
+}
+
+.full-width {
+  width: 100%;
 }
 
 .help-text {

@@ -15,7 +15,8 @@ module.exports = {
       error_file: './logs/api-server-error.log',
       out_file: './logs/api-server-out.log',
       log_file: './logs/api-server-combined.log',
-      time: true
+      time: true,
+      merge_logs: true
     }
   ]
 }

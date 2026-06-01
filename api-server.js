@@ -40,7 +40,8 @@ function saveLogs() {
   }
 }
 
-const neteaseAPI = require('@neteasecloudmusicapienhanced/api')
+// 导入 API
+const API = require('@neteasecloudmusicapienhanced/api')
 
 async function executeTaskWithAPI(user, config, executionId, timestamp) {
   const userResult = {
@@ -55,11 +56,10 @@ async function executeTaskWithAPI(user, config, executionId, timestamp) {
   
   // 获取用户信息
   try {
-    const userStatus = await neteaseAPI.user_status({ cookie })
-    const userData = await userStatus.json()
-    if (userData.code === 200 && userData.profile) {
-      const nickname = userData.profile.nickname || user.nickname
-      const level = userData.profile.level || 0
+    const userStatus = await API.server.user_status({ cookie })
+    if (userStatus.body.code === 200 && userStatus.body.profile) {
+      const nickname = userStatus.body.profile.nickname || user.nickname
+      const level = userStatus.body.profile.level || 0
       const log = {
         type: 'info',
         time: timestamp,
@@ -73,11 +73,11 @@ async function executeTaskWithAPI(user, config, executionId, timestamp) {
     console.error('获取用户信息失败:', e.message)
   }
   
-  // 云贝签到（安卓端）
+  // 云贝签到（安卓端）- 使用 daily_signin 接口，type=1 为安卓端
   if (config.enableYunbeiSign !== false) {
     try {
-      const signRes = await neteaseAPI.android_sign({ cookie })
-      const signData = await signRes.json()
+      const signRes = await API.server.daily_signin({ cookie, type: 1 })
+      const signData = signRes.body
       if (signData.code === 200 || signData.code === -2) {
         const yunbei = signData.yunbei || 0
         const log = {
@@ -115,11 +115,11 @@ async function executeTaskWithAPI(user, config, executionId, timestamp) {
     }
   }
   
-  // 云贝签到（PC 端）
+  // 云贝签到（PC 端）- 使用 daily_signin 接口，type=0 为 PC 端
   if (config.enableYunbeiSignPC !== false) {
     try {
-      const signRes = await neteaseAPI.yunbei_sign({ cookie })
-      const signData = await signRes.json()
+      const signRes = await API.server.daily_signin({ cookie, type: 0 })
+      const signData = signRes.body
       if (signData.code === 200 || signData.code === -2) {
         const yunbei = signData.yunbei || 0
         const log = {
@@ -160,8 +160,8 @@ async function executeTaskWithAPI(user, config, executionId, timestamp) {
   // VIP 乐签打卡
   if (config.enableVipSign !== false) {
     try {
-      const vipSignRes = await neteaseAPI.vip_sign({ cookie })
-      const vipSignData = await vipSignRes.json()
+      const vipSignRes = await API.server.vip_sign({ cookie })
+      const vipSignData = vipSignRes.body
       if (vipSignData.code === 200) {
         const log = {
           type: 'task',
@@ -209,8 +209,8 @@ async function executeTaskWithAPI(user, config, executionId, timestamp) {
   // VIP 成长值领取
   if (config.enableVipGrowthpoint !== false) {
     try {
-      const growthRes = await neteaseAPI.vip_growthpoint_gain({ cookie })
-      const growthData = await growthRes.json()
+      const growthRes = await API.server.vip_growthpoint_gain({ cookie })
+      const growthData = growthRes.body
       if (growthData.code === 200) {
         const log = {
           type: 'task',
@@ -258,8 +258,8 @@ async function executeTaskWithAPI(user, config, executionId, timestamp) {
   // VIP 音乐任务
   if (config.enableVipMusicTasks !== false) {
     try {
-      const musicTaskRes = await neteaseAPI.vip_timemachine({ cookie })
-      const musicTaskData = await musicTaskRes.json()
+      const musicTaskRes = await API.server.vip_timemachine({ cookie })
+      const musicTaskData = musicTaskRes.body
       if (musicTaskData.code === 200) {
         const log = {
           type: 'task',
@@ -297,11 +297,79 @@ async function executeTaskWithAPI(user, config, executionId, timestamp) {
   // 自动发布动态
   if (config.enableAutoPost !== false) {
     try {
-      const postRes = await neteaseAPI.event({ 
+      const postRes = await API.server.event({ 
         cookie,
         pid: config.postPlaylistId || '8402996200'
       })
-      const postData = await postRes.json()
+      const postData = postRes.body
+      if (postData.code === 200) {
+        const log = {
+          type: 'task',
+          time: timestamp,
+          message: `✅ 自动发布动态：发布成功`
+        }
+        executionLogs.push(log)
+        broadcastLog(log)
+        console.log(`  ✅ 自动发布动态：发布成功`)
+        userResult.details.push('自动发布动态：发布成功')
+      } else {
+        const log = {
+          type: 'task',
+          time: timestamp,
+          message: `⚠️ 自动发布动态：${postData.msg || '执行完成'}`
+        }
+        executionLogs.push(log)
+        broadcastLog(log)
+        console.log(`  ⚠️ 自动发布动态：${postData.msg || '执行完成'}`)
+        userResult.details.push(`自动发布动态：${postData.msg || '执行完成'}`)
+      }
+    } catch (e) {
+      const log = {
+        type: 'error',
+        time: timestamp,
+        message: `❌ 自动发布动态：${e.message}`
+      }
+      executionLogs.push(log)
+      broadcastLog(log)
+      console.error(`  ❌ 自动发布动态：${e.message}`)
+      userResult.details.push(`自动发布动态：${e.message}`)
+    }
+  }Logs.push(log)
+        broadcastLog(log)
+        console.log(`  ✅ VIP 音乐任务：时空机器执行成功`)
+        userResult.details.push('VIP 音乐任务：时空机器执行成功')
+      } else {
+        const log = {
+          type: 'task',
+          time: timestamp,
+          message: `⚠️ VIP 音乐任务：${musicTaskData.msg || '执行完成'}`
+        }
+        executionLogs.push(log)
+        broadcastLog(log)
+        console.log(`  ⚠️ VIP 音乐任务：${musicTaskData.msg || '执行完成'}`)
+        userResult.details.push(`VIP 音乐任务：${musicTaskData.msg || '执行完成'}`)
+      }
+    } catch (e) {
+      const log = {
+        type: 'error',
+        time: timestamp,
+        message: `❌ VIP 音乐任务：${e.message}`
+      }
+      executionLogs.push(log)
+      broadcastLog(log)
+      console.error(`  ❌ VIP 音乐任务：${e.message}`)
+      userResult.details.push(`VIP 音乐任务：${e.message}`)
+    }
+  }
+  
+  // 自动发布动态
+  if (config.enableAutoPost !== false) {
+    try {
+      const postRes = await api.event({ 
+        cookie,
+        pid: config.postPlaylistId || '8402996200'
+      })
+      const postData = postRes.body
       if (postData.code === 200) {
         const log = {
           type: 'task',

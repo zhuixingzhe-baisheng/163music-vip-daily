@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useConfigStore } from '../stores/config'
 
@@ -10,7 +10,8 @@ const showMessage = ref(false)
 const messageType = ref('')
 const messageText = ref('')
 const realTimeLogs = ref([])
-const pollTimer = ref(null)
+const eventSource = ref(null)
+const logsContainer = ref(null)
 
 const executeTaskTitle = computed(() => {
   return isExecuting.value ? '执行中...' : '立即执行'
@@ -24,29 +25,54 @@ const executeDescriptionIcon = computed(() => {
   return isExecuting.value ? '⏳' : '▶️'
 })
 
-const fetchRealTimeLogs = async () => {
+const connectToRealTimeLogs = () => {
+  if (eventSource.value) {
+    eventSource.value.close()
+  }
+  
+  eventSource.value = new EventSource('/api/realtime-logs')
+  
+  eventSource.value.onmessage = (event) => {
+    try {
+
+      const log = JSON.parse(event.data)
+      realTimeLogs.value.push(log)
+      
+      if (realTimeLogs.value.length > 20) {
+        realTimeLogs.value.shift()
+      }
+      
+      if (logsContainer.value) {
+        nextTick(() => {
+          logsContainer.value.scrollTop = logsContainer.value.scrollHeight
+        })
+      }
+    } catch (e) {
+      console.error('解析日志失败:', e)
+    }
+  }
+  
+  eventSource.value.onerror = (error) => {
+    console.error('SSE 连接错误:', error)
+    eventSource.value.close()
+    setTimeout(connectToRealTimeLogs, 3000)
+  }
+}
+
+const checkExecutionStatus = async () => {
   try {
-    const response = await fetch('/api/logs')
+    const response = await fetch('/api/execution-status')
     if (response.ok) {
       const data = await response.json()
-      realTimeLogs.value = data.slice(0, 5)
+      isExecuting.value = data.executing
     }
   } catch (error) {
-    console.error('获取实时日志失败:', error)
+    console.error('检查执行状态失败:', error)
   }
 }
 
 const isAnyAccountExecuting = () => {
-  const now = new Date().getTime()
-  const fiveMinutesAgo = now - 5 * 60 * 1000
-  
-  if (realTimeLogs.value.length === 0) return false
-  
-  const latestLog = realTimeLogs.value[0]
-  if (!latestLog || !latestLog.time) return false
-  
-  const logTime = new Date(latestLog.time.replace(' ', 'T')).getTime()
-  return logTime > fiveMinutesAgo
+  return isExecuting.value
 }
 
 const quickActions = ref([
@@ -106,6 +132,7 @@ const executeAllTasks = async () => {
   }
   
   isExecuting.value = true
+  realTimeLogs.value = []
   
   try {
     const response = await fetch('/api/execute', {
@@ -124,7 +151,6 @@ const executeAllTasks = async () => {
       showMessage.value = true
       messageType.value = 'success'
       messageText.value = '任务执行成功！已记录到执行日志'
-      fetchRealTimeLogs()
     } else {
       showMessage.value = true
       messageType.value = 'error'
@@ -142,14 +168,29 @@ const executeAllTasks = async () => {
   }
 }
 
+const stopExecution = async () => {
+  try {
+    await fetch('/api/stop', { method: 'POST' })
+    isExecuting.value = false
+    const stopLog = {
+      type: 'stopped',
+      time: new Date().toISOString().replace('T', ' ').substring(0, 19),
+      message: '⏹️ 任务已停止'
+    }
+    realTimeLogs.value.push(stopLog)
+  } catch (error) {
+    console.error('停止执行失败:', error)
+  }
+}
+
 onMounted(() => {
-  fetchRealTimeLogs()
-  pollTimer.value = setInterval(fetchRealTimeLogs, 3000)
+  checkExecutionStatus()
+  connectToRealTimeLogs()
 })
 
 onUnmounted(() => {
-  if (pollTimer.value) {
-    clearInterval(pollTimer.value)
+  if (eventSource.value) {
+    eventSource.value.close()
   }
 })
 </script>
@@ -208,28 +249,21 @@ onUnmounted(() => {
     <div class="card real-time-logs-card">
       <div class="logs-header">
         <h2>实时日志</h2>
-        <span class="refresh-indicator">🔔 每 3 秒自动刷新</span>
+        <div class="logs-actions">
+          <button v-if="isExecuting" class="btn-stop" @click="stopExecution">⏹️ 停止执行</button>
+          <span class="connection-status" :class="{ connected: eventSource !== null }">
+            {{ eventSource ? '🟢 已连接' : '🔴 未连接' }}
+          </span>
+        </div>
       </div>
-      <div v-if="realTimeLogs.length === 0" class="empty-logs">
-        <p>暂无执行记录，点击上方"立即执行"按钮开始任务</p>
-      </div>
-      <div v-else class="real-time-logs">
-        <div v-for="(log, index) in realTimeLogs" :key="index" class="log-entry">
-          <div class="log-time">{{ log.time }}</div>
-          <div class="log-account">{{ log.account }}</div>
-          <div class="log-summary">
-            <span :class="['status-badge', log.type]">
-              {{ log.type === 'success' ? '✅ 成功' : '⚠️ 警告' }}
-            </span>
-            <span class="log-text">{{ log.summary }}</span>
-          </div>
-          <div class="log-details-preview">
-            <span v-for="(detail, i) in log.details.slice(0, 2)" :key="i" class="detail-item">
-              {{ detail }}
-            </span>
-            <span v-if="log.details.length > 2" class="more-details">
-              +{{ log.details.length - 2 }} 更多
-            </span>
+      <div ref="logsContainer" class="real-time-logs-terminal">
+        <div v-if="realTimeLogs.length === 0" class="empty-logs">
+          <p>暂无执行日志，点击上方"立即执行"按钮开始任务</p>
+        </div>
+        <div v-else class="logs-content">
+          <div v-for="(log, index) in realTimeLogs" :key="index" :class="['log-line', log.type]">
+            <span class="log-timestamp">[{{ log.time.split(' ')[1] }}]</span>
+            <span class="log-message">{{ log.message }}</span>
           </div>
         </div>
       </div>
@@ -375,112 +409,129 @@ onUnmounted(() => {
 
 .real-time-logs-card {
   padding: 0;
+  overflow: hidden;
 }
 
 .logs-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem 1.5rem 1rem 1.5rem;
-  border-bottom: 1px solid #eee;
+  padding: 1rem 1.5rem;
+  background: #2d2d2d;
+  color: #fff;
 }
 
 .logs-header h2 {
   margin: 0;
-  color: #333;
+  color: #fff;
+  font-size: 1rem;
 }
 
-.refresh-indicator {
+.logs-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.btn-stop {
+  padding: 0.4rem 0.8rem;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 0.2s;
+}
+
+.btn-stop:hover {
+  background: #c82333;
+}
+
+.connection-status {
   font-size: 0.85rem;
   color: #999;
+}
+
+.connection-status.connected {
+  color: #4caf50;
+}
+
+.real-time-logs-terminal {
+  max-height: 400px;
+  overflow-y: auto;
+  background: #1e1e1e;
+  padding: 1rem;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.9rem;
+  line-height: 1.6;
 }
 
 .empty-logs {
   padding: 3rem;
   text-align: center;
-  color: #999;
-}
-
-.real-time-logs {
-  padding: 0 1.5rem 1.5rem 1.5rem;
-}
-
-.log-entry {
-  padding: 1rem;
-  border-bottom: 1px solid #f0f0f0;
-  transition: background 0.2s;
-}
-
-.log-entry:last-child {
-  border-bottom: none;
-}
-
-.log-entry:hover {
-  background: #f9f9f9;
-}
-
-.log-time {
-  font-size: 0.85rem;
-  color: #999;
-  margin-bottom: 0.3rem;
-}
-
-.log-account {
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 0.5rem;
-}
-
-.log-summary {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.status-badge {
-  padding: 0.2rem 0.6rem;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: 500;
-}
-
-.status-badge.success {
-  background: #d4edda;
-  color: #155724;
-}
-
-.status-badge.warning {
-  background: #fff3cd;
-  color: #856404;
-}
-
-.status-badge.error {
-  background: #f8d7da;
-  color: #721c24;
-}
-
-.log-text {
-  color: #333;
-  font-size: 0.95rem;
-}
-
-.log-details-preview {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  font-size: 0.85rem;
   color: #666;
 }
 
-.detail-item {
-  background: #f5f5f5;
-  padding: 0.2rem 0.5rem;
+.logs-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.log-line {
+  padding: 0.3rem 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.log-line.start {
+  color: #4fc3f7;
+}
+
+.log-line.info {
+  color: #fff;
+}
+
+.log-line.task {
+  color: #81c784;
+}
+
+.log-line.complete {
+  color: #ffd54f;
+  font-weight: bold;
+}
+
+.log-line.error {
+  color: #e57373;
+}
+
+.log-line.stopped {
+  color: #ffb74d;
+}
+
+.log-timestamp {
+  color: #757575;
+  margin-right: 0.5rem;
+}
+
+.log-message {
+  color: inherit;
+}
+
+.real-time-logs-terminal::-webkit-scrollbar {
+  width: 8px;
+}
+
+.real-time-logs-terminal::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+.real-time-logs-terminal::-webkit-scrollbar-thumb {
+  background: #444;
   border-radius: 4px;
 }
 
-.more-details {
-  color: #999;
-  font-style: italic;
+.real-time-logs-terminal::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
 </style>

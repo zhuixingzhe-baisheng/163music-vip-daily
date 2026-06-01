@@ -1,7 +1,17 @@
 <script setup>
+import { ref } from 'vue'
 import { useConfigStore } from '../stores/config'
 
 const configStore = useConfigStore()
+const errorMsg = ref('')
+const successMsg = ref('')
+
+const clearMessages = () => {
+  setTimeout(() => {
+    errorMsg.value = ''
+    successMsg.value = ''
+  }, 3000)
+}
 
 const features = [
   { key: 'enableYunbeiSign', label: '云贝签到（安卓端）', description: '每日自动进行安卓端云贝签到' },
@@ -13,13 +23,41 @@ const features = [
   { key: 'deletePreviousPost', label: '删除上次动态', description: '发布新动态前删除之前的动态' }
 ]
 
+const validateAndSave = () => {
+  errorMsg.value = ''
+  
+  if (configStore.settings.serverSendKey && !configStore.validateServerSendKey(configStore.settings.serverSendKey)) {
+    errorMsg.value = 'Server 酱 SendKey 格式不正确，应以 SCT 开头'
+    clearMessages()
+    return false
+  }
+  
+  if (configStore.settings.pushplusToken && !configStore.validatePushplusToken(configStore.settings.pushplusToken)) {
+    errorMsg.value = 'PushPlus Token 格式不正确，长度至少 10 位'
+    clearMessages()
+    return false
+  }
+  
+  return true
+}
+
 const updateSetting = (key, value) => {
   configStore.updateSetting(key, value)
+}
+
+const saveSettings = () => {
+  if (validateAndSave()) {
+    successMsg.value = '配置已保存'
+    clearMessages()
+  }
 }
 </script>
 
 <template>
   <div class="tasks-view">
+    <div v-if="errorMsg" class="message error-message">{{ errorMsg }}</div>
+    <div v-if="successMsg" class="message success-message">{{ successMsg }}</div>
+    
     <div class="card">
       <h2>任务开关配置</h2>
       <div class="features-grid">
@@ -89,7 +127,9 @@ const updateSetting = (key, value) => {
             type="text" 
             v-model="configStore.settings.serverSendKey"
             placeholder="SCTxxxxxxxx"
+            @blur="saveSettings"
           />
+          <small class="help-text">以 SCT 开头的字符串，例如：SCT12345</small>
         </div>
         <div class="form-group">
           <label>PushPlus Token</label>
@@ -97,11 +137,13 @@ const updateSetting = (key, value) => {
             type="text" 
             v-model="configStore.settings.pushplusToken"
             placeholder="你的 token"
+            @blur="saveSettings"
           />
+          <small class="help-text">PushPlus 推送令牌，长度至少 10 位</small>
         </div>
         <div class="form-group">
           <label>PushPlus 推送渠道</label>
-          <select v-model="configStore.settings.pushplusChannel">
+          <select v-model="configStore.settings.pushplusChannel" @change="saveSettings">
             <option value="wechat">微信公众号</option>
             <option value="wechatcp">企业微信</option>
             <option value="corp">企业微信</option>
@@ -119,6 +161,25 @@ const updateSetting = (key, value) => {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
+
+.message {
+  padding: 1rem;
+  border-radius: 8px;
+  text-align: center;
+  font-weight: 500;
+}
+
+.error-message {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.success-message {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
 }
 
 .features-grid {
@@ -151,5 +212,12 @@ const updateSetting = (key, value) => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 1rem;
+}
+
+.help-text {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.85rem;
+  color: #666;
 }
 </style>

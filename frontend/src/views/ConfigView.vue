@@ -7,22 +7,56 @@ const configStore = useConfigStore()
 const newNickname = ref('')
 const newCookie = ref('')
 const showAddForm = ref(false)
+const errorMsg = ref('')
+const successMsg = ref('')
+
+const clearMessages = () => {
+  setTimeout(() => {
+    errorMsg.value = ''
+    successMsg.value = ''
+  }, 3000)
+}
 
 const addNewUser = () => {
-  if (newNickname.value && newCookie.value) {
-    configStore.addUser({
-      nickname: newNickname.value,
-      cookie: newCookie.value.startsWith('MUSIC_U=') ? newCookie.value : `MUSIC_U=${newCookie.value}`
-    })
-    newNickname.value = ''
-    newCookie.value = ''
-    showAddForm.value = false
+  errorMsg.value = ''
+  successMsg.value = ''
+  
+  if (!newNickname.value || newNickname.value.trim() === '') {
+    errorMsg.value = '请输入账号昵称'
+    clearMessages()
+    return
   }
+  
+  if (!newCookie.value || newCookie.value.trim() === '') {
+    errorMsg.value = '请输入 MUSIC_U Cookie'
+    clearMessages()
+    return
+  }
+  
+  const cookieValue = newCookie.value.startsWith('MUSIC_U=') ? newCookie.value.substring(8) : newCookie.value
+  if (!configStore.validateMusicU(cookieValue)) {
+    errorMsg.value = 'MUSIC_U 格式不正确，请检查 cookie 值是否有效'
+    clearMessages()
+    return
+  }
+  
+  configStore.addUser({
+    nickname: newNickname.value.trim(),
+    cookie: newCookie.value.trim().startsWith('MUSIC_U=') ? newCookie.value.trim() : `MUSIC_U=${newCookie.value.trim()}`
+  })
+  
+  successMsg.value = '账号添加成功！'
+  newNickname.value = ''
+  newCookie.value = ''
+  showAddForm.value = false
+  clearMessages()
 }
 
 const removeUser = (index) => {
   if (confirm(`确定要删除账号"${configStore.users[index].nickname}"吗？`)) {
     configStore.removeUser(index)
+    successMsg.value = '账号已删除'
+    clearMessages()
   }
 }
 
@@ -32,12 +66,16 @@ const exportConfig = () => {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = 'config.json'
+  a.download = 'netease-config.json'
   a.click()
   URL.revokeObjectURL(url)
+  successMsg.value = '配置导出成功！'
+  clearMessages()
 }
 
 const importConfigFile = (event) => {
+  errorMsg.value = ''
+  successMsg.value = ''
   const file = event.target.files[0]
   if (file) {
     const reader = new FileReader()
@@ -45,10 +83,15 @@ const importConfigFile = (event) => {
       try {
         const config = JSON.parse(e.target.result)
         configStore.importConfig(config)
-        alert('配置导入成功！')
+        successMsg.value = '配置导入成功！'
       } catch (err) {
-        alert('配置文件格式错误')
+        errorMsg.value = '配置文件格式错误，请检查文件内容'
       }
+      clearMessages()
+    }
+    reader.onerror = () => {
+      errorMsg.value = '文件读取失败'
+      clearMessages()
     }
     reader.readAsText(file)
   }
@@ -57,6 +100,9 @@ const importConfigFile = (event) => {
 
 <template>
   <div class="config-view">
+    <div v-if="errorMsg" class="message error-message">{{ errorMsg }}</div>
+    <div v-if="successMsg" class="message success-message">{{ successMsg }}</div>
+    
     <div class="card">
       <h2>多账号管理</h2>
       
@@ -78,12 +124,13 @@ const importConfigFile = (event) => {
       <div v-if="showAddForm" class="add-form card">
         <h3>添加新账号</h3>
         <div class="form-group">
-          <label>账号昵称</label>
+          <label>账号昵称 <span class="required">*</span></label>
           <input v-model="newNickname" placeholder="例如：我的主账号" />
         </div>
         <div class="form-group">
-          <label>MUSIC_U Cookie</label>
+          <label>MUSIC_U Cookie <span class="required">*</span></label>
           <textarea v-model="newCookie" placeholder="MUSIC_U=xxxxxxxxxxxxx" rows="3"></textarea>
+          <small class="help-text">从浏览器开发者工具复制的 MUSIC_U 值</small>
         </div>
         <div class="form-actions">
           <button class="btn btn-primary" @click="addNewUser">添加账号</button>
@@ -144,6 +191,25 @@ const importConfigFile = (event) => {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
+
+.message {
+  padding: 1rem;
+  border-radius: 8px;
+  text-align: center;
+  font-weight: 500;
+}
+
+.error-message {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.success-message {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
 }
 
 .empty-state {
@@ -247,5 +313,16 @@ const importConfigFile = (event) => {
   border-radius: 3px;
   font-family: monospace;
   color: #d63384;
+}
+
+.required {
+  color: #e60026;
+}
+
+.help-text {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.85rem;
+  color: #666;
 }
 </style>

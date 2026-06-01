@@ -7,8 +7,6 @@
 
 > 🎉 **新功能：可视化 Web 管理界面已上线！** 无需配置，直接在浏览器中管理任务和账号。详见 [Web 管理界面](#-web-管理界面)
 
-> 🐉 **使用青龙面板？** 请切换到 [qinglong 分支](https://github.com/zhuixingzhe-baisheng/163music-vip-daily/tree/qinglong)
-
 ---
 
 ## 🌐 Web 管理界面
@@ -311,7 +309,6 @@ crontab -e
 - [frontend/README.md](./frontend/README.md) - Web 管理界面使用说明
 - [DEPLOY_LINUX.md](./DEPLOY_LINUX.md) - Linux 环境变量部署指南
 - [DEPLOY.md](./DEPLOY.md) - 快速部署指南
-- [qinglong 分支](https://github.com/zhuixingzhe-baisheng/163music-vip-daily/tree/qinglong) - 青龙面板版本
 
 ## 📖 参考资料
 

@@ -134,6 +134,18 @@ const executeAllTasks = async () => {
     return
   }
   
+  // 先保存配置到 config.json
+  try {
+    await fetch('/api/save-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(configStore.exportConfig())
+    })
+    console.log('配置已保存到 config.json')
+  } catch (e) {
+    console.error('保存配置失败:', e)
+  }
+  
   isExecuting.value = true
   realTimeLogs.value = []
   

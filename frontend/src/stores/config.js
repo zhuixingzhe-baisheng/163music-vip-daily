@@ -11,15 +11,27 @@ export const useConfigStore = defineStore('config', () => {
         return JSON.parse(saved)
       }
     } catch (e) {
-      console.error('加载配置失败:', e)
+      console.error('加载本地配置失败:', e)
     }
     return null
+  }
+  
+  const getStorage = () => {
+    return localStorage.getItem(STORAGE_KEY)
   }
   
   const saveToStorage = () => {
     try {
       const config = exportConfig()
       localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
+      
+      // 同时保存到后端 config.json
+      fetch('/api/save-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+      }).catch(e => console.error('保存配置到文件失败:', e))
+      
       return true
     } catch (e) {
       console.error('保存配置失败:', e)

@@ -23,6 +23,9 @@ function executeTasks(config, executionId) {
     const results = []
     const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19)
     
+    console.log('收到执行请求，配置数据:', JSON.stringify(config, null, 2))
+    console.log('账号列表:', config.users)
+    
     const startLog = {
       type: 'start',
       time: timestamp,
@@ -36,10 +39,20 @@ function executeTasks(config, executionId) {
       const errorLog = {
         type: 'error',
         time: timestamp,
-        message: '❌ 没有配置任何账号'
+        message: '❌ 没有配置任何账号，请先在"账号配置"页面添加账号'
       }
       executionLogs.push(errorLog)
       broadcastLog(errorLog)
+      console.log('错误：没有配置任何账号')
+      
+      const helpLog = {
+        type: 'info',
+        time: timestamp,
+        message: '💡 操作步骤：1. 点击"账号配置" → 2. 添加账号 → 3. 填写 MUSIC_U Cookie → 4. 返回首页执行任务'
+      }
+      executionLogs.push(helpLog)
+      broadcastLog(helpLog)
+      
       resolve({ success: false, message: '没有配置任何账号' })
       return
     }

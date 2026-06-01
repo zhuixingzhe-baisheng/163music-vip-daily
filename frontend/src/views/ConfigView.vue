@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useConfigStore } from '../stores/config'
 
 const configStore = useConfigStore()
@@ -9,6 +9,10 @@ const newCookie = ref('')
 const showAddForm = ref(false)
 const errorMsg = ref('')
 const successMsg = ref('')
+
+onMounted(() => {
+  console.log('账号配置页面加载，当前账号列表:', configStore.users)
+})
 
 const clearMessages = () => {
   setTimeout(() => {
@@ -40,12 +44,19 @@ const addNewUser = () => {
     return
   }
   
+  const nickname = newNickname.value.trim()
+  const cookie = newCookie.value.trim().startsWith('MUSIC_U=') ? newCookie.value.trim() : `MUSIC_U=${newCookie.value.trim()}`
+  
   configStore.addUser({
-    nickname: newNickname.value.trim(),
-    cookie: newCookie.value.trim().startsWith('MUSIC_U=') ? newCookie.value.trim() : `MUSIC_U=${newCookie.value.trim()}`
+    nickname: nickname,
+    cookie: cookie
   })
   
-  successMsg.value = '账号添加成功！'
+  console.log('账号添加成功:', nickname)
+  console.log('当前账号列表:', configStore.users)
+  console.log('localStorage 数据:', localStorage.getItem('netease_tasks_config'))
+  
+  successMsg.value = `账号"${nickname}"添加成功！`
   newNickname.value = ''
   newCookie.value = ''
   showAddForm.value = false
@@ -105,6 +116,13 @@ const importConfigFile = (event) => {
     
     <div class="card">
       <h2>多账号管理</h2>
+      
+      <div class="account-summary">
+        <span class="summary-badge">已配置 {{ configStore.users.length }} 个账号</span>
+        <button class="btn btn-primary btn-sm" @click="showAddForm = !showAddForm">
+          {{ showAddForm ? '取消添加' : '+ 添加账号' }}
+        </button>
+      </div>
       
       <div v-if="configStore.users.length === 0" class="empty-state">
         <p>还没有添加任何账号</p>
@@ -191,6 +209,26 @@ const importConfigFile = (event) => {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
+
+.account-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: #f0f0f0;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
+.summary-badge {
+  font-weight: 600;
+  color: #333;
+}
+
+.btn-sm {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.9rem;
 }
 
 .message {

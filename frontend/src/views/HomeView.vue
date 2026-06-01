@@ -121,6 +121,9 @@ const executeAllTasks = async () => {
     return
   }
   
+  console.log('当前配置的账号数量:', configStore.users.length)
+  console.log('当前配置详情:', configStore.exportConfig())
+  
   if (configStore.users.length === 0) {
     showMessage.value = true
     messageType.value = 'warning'

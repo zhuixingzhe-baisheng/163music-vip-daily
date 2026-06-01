@@ -150,8 +150,7 @@ const saveSettings = () => {
             <option value="">不使用推送</option>
             <option value="server">Server 酱</option>
             <option value="wechat">微信公众号 (PushPlus)</option>
-            <option value="wechatcp">企业微信 (PushPlus)</option>
-            <option value="corp">企业微信 (PushPlus)</option>
+            <option value="wechatcp">企业微信应用号 (PushPlus)</option>
             <option value="sms">短信 (PushPlus)</option>
             <option value="webhook">Webhook (PushPlus)</option>
           </select>
@@ -170,7 +169,7 @@ const saveSettings = () => {
         </div>
 
         <!-- PushPlus 配置 -->
-        <div v-if="['wechat', 'wechatcp', 'corp', 'sms', 'webhook'].includes(currentChannel)" class="form-group full-width">
+        <div v-if="['wechat', 'wechatcp', 'sms', 'webhook'].includes(currentChannel)" class="form-group full-width">
           <label>PushPlus Token</label>
           <input 
             type="text" 

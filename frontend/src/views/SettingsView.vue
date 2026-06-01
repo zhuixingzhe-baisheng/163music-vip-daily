@@ -17,6 +17,7 @@ const features = [
   { key: 'enableYunbeiSign', label: '云贝签到（安卓端）', description: '每日自动进行安卓端云贝签到' },
   { key: 'enableYunbeiSignPC', label: '云贝签到（PC 端）', description: '每日自动进行 PC 端云贝签到' },
   { key: 'enableVipSign', label: 'VIP 乐签打卡', description: 'VIP 用户每日乐签打卡' },
+  { key: 'showVipTaskList', label: '显示 VIP 任务列表', description: '执行前显示 VIP 任务列表' },
   { key: 'enableVipGrowthpoint', label: 'VIP 成长值领取', description: '自动领取已完成任务的成长值' },
   { key: 'enableVipMusicTasks', label: 'VIP 音乐任务', description: '自动完成收藏、听歌等任务' },
   { key: 'enableAutoPost', label: '自动发布动态', description: '每日自动分享歌曲到动态' },
@@ -154,6 +155,16 @@ const saveSettings = () => {
             <option value="webhook">Webhook</option>
             <option value="sms">短信</option>
           </select>
+        </div>
+        <div class="form-group">
+          <label>PushPlus Webhook</label>
+          <input 
+            type="text" 
+            v-model="configStore.settings.pushplusWebhook"
+            placeholder="自定义 Webhook 地址"
+            @blur="saveSettings"
+          />
+          <small class="help-text">仅在渠道为 webhook 时填写</small>
         </div>
       </div>
     </div>

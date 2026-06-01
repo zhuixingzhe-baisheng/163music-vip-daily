@@ -45,16 +45,18 @@ export const useConfigStore = defineStore('config', () => {
     enableYunbeiSignPC: true,
     enableVipSign: true,
     enableVipGrowthpoint: true,
+    showVipTaskList: true,
     enableVipMusicTasks: true,
-    enableAutoPost: true,
-    deletePreviousPost: true,
     vipMusicPlaylistId: '8402996200',
     vipMusicSongCount: 3,
+    enableAutoPost: true,
+    deletePreviousPost: true,
     postPlaylistId: '8402996200',
     postSongCount: 1,
     serverSendKey: '',
     pushplusToken: '',
-    pushplusChannel: 'wechat'
+    pushplusChannel: 'wechat',
+    pushplusWebhook: ''
   })
 
   const savedData = loadFromStorage()

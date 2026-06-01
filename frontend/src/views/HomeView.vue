@@ -1,8 +1,26 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useConfigStore } from '../stores/config'
 
 const router = useRouter()
+const configStore = useConfigStore()
+const isExecuting = ref(false)
+const showMessage = ref(false)
+const messageType = ref('')
+const messageText = ref('')
+
+const executeTaskTitle = computed(() => {
+  return isExecuting.value ? '执行中...' : '立即执行'
+})
+
+const executeDescription = computed(() => {
+  return isExecuting.value ? '任务正在后台执行，请稍候' : '手动触发一次所有任务'
+})
+
+const executeDescriptionIcon = computed(() => {
+  return isExecuting.value ? '⏳' : '▶️'
+})
 
 const quickActions = ref([
   {
@@ -22,24 +40,69 @@ const quickActions = ref([
     description: '查看任务执行历史和状态',
     icon: '📋',
     link: '/logs'
-  },
-  {
-    title: '立即执行',
-    description: '手动触发一次所有任务',
-    icon: '▶️',
-    action: 'execute'
   }
 ])
 
 const handleAction = (action) => {
-  if (action.action === 'execute') {
-    alert('任务执行功能开发中...')
+  router.push(action.link)
+}
+
+const executeAllTasks = async () => {
+  if (isExecuting.value) return
+  
+  if (configStore.users.length === 0) {
+    showMessage.value = true
+    messageType.value = 'warning'
+    messageText.value = '请先添加至少一个账号再执行任务'
+    setTimeout(() => {
+      showMessage.value = false
+    }, 3000)
+    return
+  }
+  
+  isExecuting.value = true
+  
+  try {
+    const response = await fetch('/api/execute', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        config: configStore.exportConfig()
+      })
+    })
+    
+    const result = await response.json()
+    
+    if (response.ok) {
+      showMessage.value = true
+      messageType.value = 'success'
+      messageText.value = '任务执行成功！已记录到执行日志'
+    } else {
+      showMessage.value = true
+      messageType.value = 'error'
+      messageText.value = `任务执行失败：${result.message || '未知错误'}`
+    }
+  } catch (error) {
+    showMessage.value = true
+    messageType.value = 'error'
+    messageText.value = `网络错误：${error.message}`
+  } finally {
+    setTimeout(() => {
+      isExecuting.value = false
+      showMessage.value = false
+    }, 3000)
   }
 }
 </script>
 
 <template>
   <div class="home-view">
+    <div v-if="showMessage" :class="['message', `message-${messageType}`]">
+      {{ messageText }}
+    </div>
+    
     <div class="welcome-card card">
       <h2>欢迎使用网易云音乐自动任务管理</h2>
       <p>这是一个可视化的任务管理界面，帮助您轻松配置和管理网易云音乐自动任务。</p>
@@ -71,6 +134,16 @@ const handleAction = (action) => {
           <div class="action-icon">{{ action.icon }}</div>
           <h3>{{ action.title }}</h3>
           <p>{{ action.description }}</p>
+        </div>
+        
+        <div 
+          class="action-card execute-card"
+          :class="{ executing: isExecuting }"
+          @click="executeAllTasks"
+        >
+          <div class="action-icon">{{ executeDescriptionIcon }}</div>
+          <h3>{{ executeTaskTitle }}</h3>
+          <p>{{ executeDescription }}</p>
         </div>
       </div>
     </div>
@@ -125,34 +198,45 @@ const handleAction = (action) => {
   gap: 1.5rem;
 }
 
+.message {
+  padding: 1rem;
+  border-radius: 8px;
+  text-align: center;
+  font-weight: 500;
+  animation: slideDown 0.3s ease-out;
+}
+
+.message-success {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.message-error {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.message-warning {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeaa7;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .welcome-card h2 {
   color: #e60026;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 1.5rem;
-  margin-top: 1.5rem;
-}
-
-.stat-item {
-  text-align: center;
-  padding: 1rem;
-  background: #f9f9f9;
-  border-radius: 8px;
-}
-
-.stat-value {
-  font-size: 2rem;
-  font-weight: bold;
-  color: #e60026;
-  margin-bottom: 0.5rem;
-}
-
-.stat-label {
-  color: #666;
-  font-size: 0.9rem;
 }
 
 .actions-grid {
@@ -176,6 +260,16 @@ const handleAction = (action) => {
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
 
+.execute-card.executing {
+  background: #e6f7ff;
+  cursor: not-allowed;
+}
+
+.execute-card.executing:hover {
+  transform: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
 .action-icon {
   font-size: 2.5rem;
   margin-bottom: 0.5rem;
@@ -187,34 +281,6 @@ const handleAction = (action) => {
 }
 
 .action-card p {
-  margin: 0;
-  color: #666;
-  font-size: 0.9rem;
-}
-
-.features-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.feature-item {
-  display: flex;
-  gap: 1rem;
-  align-items: flex-start;
-}
-
-.feature-icon {
-  font-size: 1.5rem;
-}
-
-.feature-item strong {
-  display: block;
-  margin-bottom: 0.3rem;
-  color: #333;
-}
-
-.feature-item p {
   margin: 0;
   color: #666;
   font-size: 0.9rem;

@@ -1,52 +1,65 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 
-const logs = ref([
-  {
-    time: '2026-06-01 08:00:15',
-    account: '主账号',
-    type: 'success',
-    summary: '所有任务执行成功',
-    details: [
-      '✅ 云贝签到（安卓端）：获得 5 云贝',
-      '✅ 云贝签到（PC 端）：获得 5 云贝',
-      '✅ VIP 乐签打卡：打卡成功',
-      '✅ VIP 成长值领取：领取 100 成长值',
-      '✅ VIP 音乐任务：已完成',
-      '✅ 自动发布动态：已发布 1 首歌曲'
-    ]
-  },
-  {
-    time: '2026-05-31 08:00:12',
-    account: '主账号',
-    type: 'success',
-    summary: '所有任务执行成功',
-    details: [
-      '✅ 云贝签到（安卓端）：获得 5 云贝',
-      '✅ 云贝签到（PC 端）：获得 5 云贝',
-      '✅ VIP 乐签打卡：打卡成功',
-      '✅ VIP 成长值领取：领取 100 成长值',
-      '✅ VIP 音乐任务：已完成',
-      '✅ 自动发布动态：已发布 1 首歌曲'
-    ]
-  },
-  {
-    time: '2026-05-30 08:00:18',
-    account: '主账号',
-    type: 'warning',
-    summary: '部分任务执行失败',
-    details: [
-      '✅ 云贝签到（安卓端）：获得 5 云贝',
-      '✅ 云贝签到（PC 端）：获得 5 云贝',
-      '✅ VIP 乐签打卡：打卡成功',
-      '❌ VIP 成长值领取：暂无可领取的成长值',
-      '✅ VIP 音乐任务：已完成',
-      '✅ 自动发布动态：已发布 1 首歌曲'
-    ]
-  }
-])
-
+const logs = ref([])
+const isLoading = ref(true)
 const expandedLog = ref(null)
+
+const fetchLogs = async () => {
+  try {
+    const response = await fetch('/api/logs')
+    if (response.ok) {
+      const data = await response.json()
+      if (data && data.length > 0) {
+        logs.value = data
+      } else {
+        logs.value = [
+          {
+            time: new Date().toISOString().replace('T', ' ').substring(0, 19),
+            account: '演示账号',
+            type: 'success',
+            summary: '示例日志 - 所有任务执行成功',
+            details: [
+              '✅ 云贝签到（安卓端）：获得 5 云贝',
+              '✅ 云贝签到（PC 端）：获得 5 云贝',
+              '✅ VIP 乐签打卡：打卡成功',
+              '✅ VIP 成长值领取：领取 100 成长值',
+              '✅ VIP 音乐任务：已完成',
+              '✅ 自动发布动态：已发布 1 首歌曲'
+            ]
+          }
+        ]
+      }
+    }
+  } catch (error) {
+    console.error('获取日志失败:', error)
+    if (logs.value.length === 0) {
+      logs.value = [
+        {
+          time: new Date().toISOString().replace('T', ' ').substring(0, 19),
+          account: '演示账号',
+          type: 'success',
+          summary: '示例日志 - 所有任务执行成功',
+          details: [
+            '✅ 云贝签到（安卓端）：获得 5 云贝',
+            '✅ 云贝签到（PC 端）：获得 5 云贝',
+            '✅ VIP 乐签打卡：打卡成功',
+            '✅ VIP 成长值领取：领取 100 成长值',
+            '✅ VIP 音乐任务：已完成',
+            '✅ 自动发布动态：已发布 1 首歌曲'
+          ]
+        }
+      ]
+    }
+  } finally {
+    isLoading.value = false
+  }
+}
+
+onMounted(() => {
+  fetchLogs()
+  setInterval(fetchLogs, 5000)
+})
 
 const toggleLog = (index) => {
   if (expandedLog.value === index) {
@@ -67,7 +80,7 @@ const exportLogs = () => {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = 'logs.json'
+  a.download = '任务执行日志.json'
   a.click()
   URL.revokeObjectURL(url)
 }

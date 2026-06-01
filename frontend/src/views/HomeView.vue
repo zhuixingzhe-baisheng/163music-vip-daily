@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useConfigStore } from '../stores/config'
 
@@ -9,6 +9,8 @@ const isExecuting = ref(false)
 const showMessage = ref(false)
 const messageType = ref('')
 const messageText = ref('')
+const realTimeLogs = ref([])
+const pollTimer = ref(null)
 
 const executeTaskTitle = computed(() => {
   return isExecuting.value ? '执行中...' : '立即执行'
@@ -21,6 +23,31 @@ const executeDescription = computed(() => {
 const executeDescriptionIcon = computed(() => {
   return isExecuting.value ? '⏳' : '▶️'
 })
+
+const fetchRealTimeLogs = async () => {
+  try {
+    const response = await fetch('/api/logs')
+    if (response.ok) {
+      const data = await response.json()
+      realTimeLogs.value = data.slice(0, 5)
+    }
+  } catch (error) {
+    console.error('获取实时日志失败:', error)
+  }
+}
+
+const isAnyAccountExecuting = () => {
+  const now = new Date().getTime()
+  const fiveMinutesAgo = now - 5 * 60 * 1000
+  
+  if (realTimeLogs.value.length === 0) return false
+  
+  const latestLog = realTimeLogs.value[0]
+  if (!latestLog || !latestLog.time) return false
+  
+  const logTime = new Date(latestLog.time.replace(' ', 'T')).getTime()
+  return logTime > fiveMinutesAgo
+}
 
 const quickActions = ref([
   {
@@ -48,7 +75,25 @@ const handleAction = (action) => {
 }
 
 const executeAllTasks = async () => {
-  if (isExecuting.value) return
+  if (isExecuting.value) {
+    showMessage.value = true
+    messageType.value = 'warning'
+    messageText.value = '任务正在执行中，请稍候...'
+    setTimeout(() => {
+      showMessage.value = false
+    }, 3000)
+    return
+  }
+  
+  if (isAnyAccountExecuting()) {
+    showMessage.value = true
+    messageType.value = 'warning'
+    messageText.value = '有其他账号正在执行任务，请稍后再试'
+    setTimeout(() => {
+      showMessage.value = false
+    }, 3000)
+    return
+  }
   
   if (configStore.users.length === 0) {
     showMessage.value = true
@@ -79,6 +124,7 @@ const executeAllTasks = async () => {
       showMessage.value = true
       messageType.value = 'success'
       messageText.value = '任务执行成功！已记录到执行日志'
+      fetchRealTimeLogs()
     } else {
       showMessage.value = true
       messageType.value = 'error'
@@ -95,6 +141,17 @@ const executeAllTasks = async () => {
     }, 3000)
   }
 }
+
+onMounted(() => {
+  fetchRealTimeLogs()
+  pollTimer.value = setInterval(fetchRealTimeLogs, 3000)
+})
+
+onUnmounted(() => {
+  if (pollTimer.value) {
+    clearInterval(pollTimer.value)
+  }
+})
 </script>
 
 <template>
@@ -144,6 +201,36 @@ const executeAllTasks = async () => {
           <div class="action-icon">{{ executeDescriptionIcon }}</div>
           <h3>{{ executeTaskTitle }}</h3>
           <p>{{ executeDescription }}</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card real-time-logs-card">
+      <div class="logs-header">
+        <h2>实时日志</h2>
+        <span class="refresh-indicator">🔔 每 3 秒自动刷新</span>
+      </div>
+      <div v-if="realTimeLogs.length === 0" class="empty-logs">
+        <p>暂无执行记录，点击上方"立即执行"按钮开始任务</p>
+      </div>
+      <div v-else class="real-time-logs">
+        <div v-for="(log, index) in realTimeLogs" :key="index" class="log-entry">
+          <div class="log-time">{{ log.time }}</div>
+          <div class="log-account">{{ log.account }}</div>
+          <div class="log-summary">
+            <span :class="['status-badge', log.type]">
+              {{ log.type === 'success' ? '✅ 成功' : '⚠️ 警告' }}
+            </span>
+            <span class="log-text">{{ log.summary }}</span>
+          </div>
+          <div class="log-details-preview">
+            <span v-for="(detail, i) in log.details.slice(0, 2)" :key="i" class="detail-item">
+              {{ detail }}
+            </span>
+            <span v-if="log.details.length > 2" class="more-details">
+              +{{ log.details.length - 2 }} 更多
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -284,5 +371,116 @@ const executeAllTasks = async () => {
   margin: 0;
   color: #666;
   font-size: 0.9rem;
+}
+
+.real-time-logs-card {
+  padding: 0;
+}
+
+.logs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 1.5rem 1rem 1.5rem;
+  border-bottom: 1px solid #eee;
+}
+
+.logs-header h2 {
+  margin: 0;
+  color: #333;
+}
+
+.refresh-indicator {
+  font-size: 0.85rem;
+  color: #999;
+}
+
+.empty-logs {
+  padding: 3rem;
+  text-align: center;
+  color: #999;
+}
+
+.real-time-logs {
+  padding: 0 1.5rem 1.5rem 1.5rem;
+}
+
+.log-entry {
+  padding: 1rem;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background 0.2s;
+}
+
+.log-entry:last-child {
+  border-bottom: none;
+}
+
+.log-entry:hover {
+  background: #f9f9f9;
+}
+
+.log-time {
+  font-size: 0.85rem;
+  color: #999;
+  margin-bottom: 0.3rem;
+}
+
+.log-account {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+
+.log-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.status-badge {
+  padding: 0.2rem 0.6rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.status-badge.success {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-badge.warning {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.status-badge.error {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.log-text {
+  color: #333;
+  font-size: 0.95rem;
+}
+
+.log-details-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.detail-item {
+  background: #f5f5f5;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+
+.more-details {
+  color: #999;
+  font-style: italic;
 }
 </style>

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useConfigStore } from '../stores/config'
 
 const configStore = useConfigStore()
@@ -54,7 +54,6 @@ const addNewUser = () => {
   
   console.log('账号添加成功:', nickname)
   console.log('当前账号列表:', configStore.users)
-  console.log('localStorage 数据:', localStorage.getItem('netease_tasks_config'))
   
   successMsg.value = `账号"${nickname}"添加成功！`
   newNickname.value = ''
@@ -124,23 +123,12 @@ const importConfigFile = (event) => {
         </button>
       </div>
       
-      <div v-if="configStore.users.length === 0" class="empty-state">
+      <div v-if="configStore.users.length === 0 && !showAddForm" class="empty-state">
         <p>还没有添加任何账号</p>
         <button class="btn btn-primary" @click="showAddForm = true">添加第一个账号</button>
       </div>
 
-      <div v-else class="users-list">
-        <div v-for="(user, index) in configStore.users" :key="index" class="user-card">
-          <div class="user-info">
-            <div class="user-nickname">{{ user.nickname }}</div>
-            <div class="user-cookie">{{ user.cookie.substring(0, 20) }}...</div>
-          </div>
-          <button class="btn btn-secondary" @click="removeUser(index)">删除</button>
-        </div>
-      </div>
-
-      <div v-if="showAddForm" class="add-form card">
-        <h3>添加新账号</h3>
+      <div v-else-if="showAddForm" class="add-form">
         <div class="form-group">
           <label>账号昵称 <span class="required">*</span></label>
           <input v-model="newNickname" placeholder="例如：我的主账号" />
@@ -153,6 +141,16 @@ const importConfigFile = (event) => {
         <div class="form-actions">
           <button class="btn btn-primary" @click="addNewUser">添加账号</button>
           <button class="btn btn-secondary" @click="showAddForm = false">取消</button>
+        </div>
+      </div>
+
+      <div v-else class="users-list">
+        <div v-for="(user, index) in configStore.users" :key="index" class="user-card">
+          <div class="user-info">
+            <div class="user-nickname">{{ user.nickname }}</div>
+            <div class="user-cookie">{{ user.cookie.substring(0, 20) }}...</div>
+          </div>
+          <button class="btn btn-secondary" @click="removeUser(index)">删除</button>
         </div>
       </div>
     </div>
@@ -290,7 +288,10 @@ const importConfigFile = (event) => {
 
 .add-form {
   margin-top: 1rem;
+  padding: 1.5rem;
   border: 2px dashed #e60026;
+  border-radius: 8px;
+  background: #fffbfb;
 }
 
 .form-actions {

@@ -54,7 +54,7 @@ const saveSettings = () => {
 </script>
 
 <template>
-  <div class="tasks-view">
+  <div class="settings-view">
     <div v-if="errorMsg" class="message error-message">{{ errorMsg }}</div>
     <div v-if="successMsg" class="message success-message">{{ successMsg }}</div>
     
@@ -87,6 +87,7 @@ const saveSettings = () => {
             type="text" 
             v-model="configStore.settings.vipMusicPlaylistId"
             placeholder="8402996200"
+            @blur="saveSettings"
           />
         </div>
         <div class="form-group">
@@ -96,6 +97,7 @@ const saveSettings = () => {
             v-model.number="configStore.settings.vipMusicSongCount"
             min="1"
             max="10"
+            @blur="saveSettings"
           />
         </div>
         <div class="form-group">
@@ -104,6 +106,7 @@ const saveSettings = () => {
             type="text" 
             v-model="configStore.settings.postPlaylistId"
             placeholder="8402996200"
+            @blur="saveSettings"
           />
         </div>
         <div class="form-group">
@@ -113,6 +116,7 @@ const saveSettings = () => {
             v-model.number="configStore.settings.postSongCount"
             min="1"
             max="3"
+            @blur="saveSettings"
           />
         </div>
       </div>
@@ -157,7 +161,7 @@ const saveSettings = () => {
 </template>
 
 <style scoped>
-.tasks-view {
+.settings-view {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;

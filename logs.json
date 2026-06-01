@@ -1,5 +1,75 @@
 [
   {
+    "time": "2026-06-01 06:13:14",
+    "account": "lin",
+    "type": "success",
+    "summary": "任务执行完成",
+    "details": [
+      "云贝签到（安卓端）：API.server.daily_signin is not a function",
+      "云贝签到（PC 端）：API.server.daily_signin is not a function",
+      "VIP 乐签打卡：API.server.vip_sign is not a function",
+      "VIP 成长值领取：API.server.vip_growthpoint_gain is not a function",
+      "VIP 音乐任务：API.server.vip_timemachine is not a function",
+      "自动发布动态：API.server.event is not a function"
+    ]
+  },
+  {
+    "time": "2026-06-01 06:08:22",
+    "account": "ling",
+    "type": "success",
+    "summary": "任务执行完成",
+    "details": [
+      "云贝签到（安卓端）：neteaseAPI.android_sign is not a function",
+      "云贝签到（PC 端）：signRes.json is not a function",
+      "VIP 乐签打卡：vipSignRes.json is not a function",
+      "VIP 成长值领取：neteaseAPI.vip_growthpoint_gain is not a function",
+      "VIP 音乐任务：musicTaskRes.json is not a function",
+      "自动发布动态：postRes.json is not a function"
+    ]
+  },
+  {
+    "time": "2026-06-01 04:39:04",
+    "account": "ling",
+    "type": "success",
+    "summary": "任务执行完成",
+    "details": [
+      "云贝签到（安卓端）：neteaseAPI.android_sign is not a function",
+      "云贝签到（PC 端）：signRes.json is not a function",
+      "VIP 乐签打卡：vipSignRes.json is not a function",
+      "VIP 成长值领取：neteaseAPI.vip_growthpoint_gain is not a function",
+      "VIP 音乐任务：musicTaskRes.json is not a function",
+      "自动发布动态：postRes.json is not a function"
+    ]
+  },
+  {
+    "time": "2026-06-01 04:35:15",
+    "account": "ling",
+    "type": "success",
+    "summary": "任务执行完成",
+    "details": [
+      "云贝签到（安卓端）：neteaseAPI.android_sign is not a function",
+      "云贝签到（PC 端）：signRes.json is not a function",
+      "VIP 乐签打卡：vipSignRes.json is not a function",
+      "VIP 成长值领取：neteaseAPI.vip_growthpoint_gain is not a function",
+      "VIP 音乐任务：musicTaskRes.json is not a function",
+      "自动发布动态：postRes.json is not a function"
+    ]
+  },
+  {
+    "time": "2026-06-01 04:35:10",
+    "account": "ling",
+    "type": "success",
+    "summary": "任务执行完成",
+    "details": [
+      "云贝签到（安卓端）：neteaseAPI.android_sign is not a function",
+      "云贝签到（PC 端）：signRes.json is not a function",
+      "VIP 乐签打卡：vipSignRes.json is not a function",
+      "VIP 成长值领取：neteaseAPI.vip_growthpoint_gain is not a function",
+      "VIP 音乐任务：musicTaskRes.json is not a function",
+      "自动发布动态：postRes.json is not a function"
+    ]
+  },
+  {
     "time": "2026-06-01 04:28:19",
     "account": "ling",
     "type": "success",

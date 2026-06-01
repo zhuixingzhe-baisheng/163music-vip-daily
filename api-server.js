@@ -11,7 +11,6 @@ const clients = []
 let currentExecutionId = null
 let executionLogs = []
 
-// 加载历史日志
 try {
   if (fs.existsSync(LOGS_FILE)) {
     const data = fs.readFileSync(LOGS_FILE, 'utf8')
@@ -27,8 +26,7 @@ function broadcastLog(log) {
   clients.forEach(client => {
     try {
       client.write(`data: ${JSON.stringify(log)}\n\n`)
-    } catch (e) {
-    }
+    } catch (e) { }
   })
 }
 
@@ -40,7 +38,6 @@ function saveLogs() {
   }
 }
 
-// 导入 API
 const API = require('@neteasecloudmusicapienhanced/api')
 
 async function executeTaskWithAPI(user, config, executionId, timestamp) {
@@ -54,17 +51,12 @@ async function executeTaskWithAPI(user, config, executionId, timestamp) {
   
   const cookie = user.cookie
   
-  // 获取用户信息
   try {
     const userStatus = await API.server.user_status({ cookie })
     if (userStatus.body.code === 200 && userStatus.body.profile) {
       const nickname = userStatus.body.profile.nickname || user.nickname
       const level = userStatus.body.profile.level || 0
-      const log = {
-        type: 'info',
-        time: timestamp,
-        message: `👤 登录成功：${nickname} (Lv.${level})`
-      }
+      const log = { type: 'info', time: timestamp, message: `👤 登录成功：${nickname} (Lv.${level})` }
       executionLogs.push(log)
       broadcastLog(log)
       console.log(`  👤 登录成功：${nickname} (Lv.${level})`)
@@ -73,28 +65,19 @@ async function executeTaskWithAPI(user, config, executionId, timestamp) {
     console.error('获取用户信息失败:', e.message)
   }
   
-  // 云贝签到（安卓端）- 使用 daily_signin 接口，type=1 为安卓端
   if (config.enableYunbeiSign !== false) {
     try {
       const signRes = await API.server.daily_signin({ cookie, type: 1 })
       const signData = signRes.body
       if (signData.code === 200 || signData.code === -2) {
         const yunbei = signData.yunbei || 0
-        const log = {
-          type: 'task',
-          time: timestamp,
-          message: `✅ 云贝签到（安卓端）：获得 ${yunbei} 云贝`
-        }
+        const log = { type: 'task', time: timestamp, message: `✅ 云贝签到（安卓端）：获得 ${yunbei} 云贝` }
         executionLogs.push(log)
         broadcastLog(log)
         console.log(`  ✅ 云贝签到（安卓端）：获得 ${yunbei} 云贝`)
         userResult.details.push(`云贝签到（安卓端）：获得 ${yunbei} 云贝`)
       } else if (signData.msg && signData.msg.includes('已经签到')) {
-        const log = {
-          type: 'task',
-          time: timestamp,
-          message: `⚠️ 云贝签到（安卓端）：今日已签到`
-        }
+        const log = { type: 'task', time: timestamp, message: `⚠️ 云贝签到（安卓端）：今日已签到` }
         executionLogs.push(log)
         broadcastLog(log)
         console.log(`  ⚠️ 云贝签到（安卓端）：今日已签到`)
@@ -103,11 +86,7 @@ async function executeTaskWithAPI(user, config, executionId, timestamp) {
         throw new Error(signData.msg || '签到失败')
       }
     } catch (e) {
-      const log = {
-        type: 'error',
-        time: timestamp,
-        message: `❌ 云贝签到（安卓端）：${e.message}`
-      }
+      const log = { type: 'error', time: timestamp, message: `❌ 云贝签到（安卓端）：${e.message}` }
       executionLogs.push(log)
       broadcastLog(log)
       console.error(`  ❌ 云贝签到（安卓端）：${e.message}`)
@@ -115,28 +94,19 @@ async function executeTaskWithAPI(user, config, executionId, timestamp) {
     }
   }
   
-  // 云贝签到（PC 端）- 使用 daily_signin 接口，type=0 为 PC 端
   if (config.enableYunbeiSignPC !== false) {
     try {
       const signRes = await API.server.daily_signin({ cookie, type: 0 })
       const signData = signRes.body
       if (signData.code === 200 || signData.code === -2) {
         const yunbei = signData.yunbei || 0
-        const log = {
-          type: 'task',
-          time: timestamp,
-          message: `✅ 云贝签到（PC 端）：获得 ${yunbei} 云贝`
-        }
+        const log = { type: 'task', time: timestamp, message: `✅ 云贝签到（PC 端）：获得 ${yunbei} 云贝` }
         executionLogs.push(log)
         broadcastLog(log)
         console.log(`  ✅ 云贝签到（PC 端）：获得 ${yunbei} 云贝`)
         userResult.details.push(`云贝签到（PC 端）：获得 ${yunbei} 云贝`)
       } else if (signData.msg && signData.msg.includes('已经签到')) {
-        const log = {
-          type: 'task',
-          time: timestamp,
-          message: `⚠️ 云贝签到（PC 端）：今日已签到`
-        }
+        const log = { type: 'task', time: timestamp, message: `⚠️ 云贝签到（PC 端）：今日已签到` }
         executionLogs.push(log)
         broadcastLog(log)
         console.log(`  ⚠️ 云贝签到（PC 端）：今日已签到`)
@@ -145,11 +115,7 @@ async function executeTaskWithAPI(user, config, executionId, timestamp) {
         throw new Error(signData.msg || '签到失败')
       }
     } catch (e) {
-      const log = {
-        type: 'error',
-        time: timestamp,
-        message: `❌ 云贝签到（PC 端）：${e.message}`
-      }
+      const log = { type: 'error', time: timestamp, message: `❌ 云贝签到（PC 端）：${e.message}` }
       executionLogs.push(log)
       broadcastLog(log)
       console.error(`  ❌ 云贝签到（PC 端）：${e.message}`)
@@ -157,48 +123,31 @@ async function executeTaskWithAPI(user, config, executionId, timestamp) {
     }
   }
   
-  // VIP 乐签打卡
   if (config.enableVipSign !== false) {
     try {
       const vipSignRes = await API.server.vip_sign({ cookie })
       const vipSignData = vipSignRes.body
       if (vipSignData.code === 200) {
-        const log = {
-          type: 'task',
-          time: timestamp,
-          message: `✅ VIP 乐签打卡：打卡成功`
-        }
+        const log = { type: 'task', time: timestamp, message: `✅ VIP 乐签打卡：打卡成功` }
         executionLogs.push(log)
         broadcastLog(log)
         console.log(`  ✅ VIP 乐签打卡：打卡成功`)
         userResult.details.push('VIP 乐签打卡：打卡成功')
       } else if (vipSignData.msg && vipSignData.msg.includes('已打卡')) {
-        const log = {
-          type: 'task',
-          time: timestamp,
-          message: `⚠️ VIP 乐签打卡：今日已打卡`
-        }
+        const log = { type: 'task', time: timestamp, message: `⚠️ VIP 乐签打卡：今日已打卡` }
         executionLogs.push(log)
         broadcastLog(log)
         console.log(`  ⚠️ VIP 乐签打卡：今日已打卡`)
         userResult.details.push('VIP 乐签打卡：今日已打卡')
       } else {
-        const log = {
-          type: 'task',
-          time: timestamp,
-          message: `⚠️ VIP 乐签打卡：${vipSignData.msg || '非 VIP 用户'}`
-        }
+        const log = { type: 'task', time: timestamp, message: `⚠️ VIP 乐签打卡：${vipSignData.msg || '非 VIP 用户'}` }
         executionLogs.push(log)
         broadcastLog(log)
         console.log(`  ⚠️ VIP 乐签打卡：${vipSignData.msg || '非 VIP 用户'}`)
         userResult.details.push(`VIP 乐签打卡：${vipSignData.msg || '非 VIP 用户'}`)
       }
     } catch (e) {
-      const log = {
-        type: 'error',
-        time: timestamp,
-        message: `❌ VIP 乐签打卡：${e.message}`
-      }
+      const log = { type: 'error', time: timestamp, message: `❌ VIP 乐签打卡：${e.message}` }
       executionLogs.push(log)
       broadcastLog(log)
       console.error(`  ❌ VIP 乐签打卡：${e.message}`)
@@ -206,48 +155,31 @@ async function executeTaskWithAPI(user, config, executionId, timestamp) {
     }
   }
   
-  // VIP 成长值领取
   if (config.enableVipGrowthpoint !== false) {
     try {
       const growthRes = await API.server.vip_growthpoint_gain({ cookie })
       const growthData = growthRes.body
       if (growthData.code === 200) {
-        const log = {
-          type: 'task',
-          time: timestamp,
-          message: `✅ VIP 成长值领取：领取成功`
-        }
+        const log = { type: 'task', time: timestamp, message: `✅ VIP 成长值领取：领取成功` }
         executionLogs.push(log)
         broadcastLog(log)
         console.log(`  ✅ VIP 成长值领取：领取成功`)
         userResult.details.push('VIP 成长值领取：领取成功')
       } else if (growthData.msg && growthData.msg.includes('可领取')) {
-        const log = {
-          type: 'task',
-          time: timestamp,
-          message: `⚠️ VIP 成长值领取：${growthData.msg}`
-        }
+        const log = { type: 'task', time: timestamp, message: `⚠️ VIP 成长值领取：${growthData.msg}` }
         executionLogs.push(log)
         broadcastLog(log)
         console.log(`  ⚠️ VIP 成长值领取：${growthData.msg}`)
         userResult.details.push(`VIP 成长值领取：${growthData.msg}`)
       } else {
-        const log = {
-          type: 'task',
-          time: timestamp,
-          message: `⚠️ VIP 成长值领取：${growthData.msg || '暂无可领取'}`
-        }
+        const log = { type: 'task', time: timestamp, message: `⚠️ VIP 成长值领取：${growthData.msg || '暂无可领取'}` }
         executionLogs.push(log)
         broadcastLog(log)
         console.log(`  ⚠️ VIP 成长值领取：${growthData.msg || '暂无可领取'}`)
         userResult.details.push(`VIP 成长值领取：${growthData.msg || '暂无可领取'}`)
       }
     } catch (e) {
-      const log = {
-        type: 'error',
-        time: timestamp,
-        message: `❌ VIP 成长值领取：${e.message}`
-      }
+      const log = { type: 'error', time: timestamp, message: `❌ VIP 成长值领取：${e.message}` }
       executionLogs.push(log)
       broadcastLog(log)
       console.error(`  ❌ VIP 成长值领取：${e.message}`)
@@ -255,38 +187,25 @@ async function executeTaskWithAPI(user, config, executionId, timestamp) {
     }
   }
   
-  // VIP 音乐任务
   if (config.enableVipMusicTasks !== false) {
     try {
       const musicTaskRes = await API.server.vip_timemachine({ cookie })
       const musicTaskData = musicTaskRes.body
       if (musicTaskData.code === 200) {
-        const log = {
-          type: 'task',
-          time: timestamp,
-          message: `✅ VIP 音乐任务：时空机器执行成功`
-        }
+        const log = { type: 'task', time: timestamp, message: `✅ VIP 音乐任务：时空机器执行成功` }
         executionLogs.push(log)
         broadcastLog(log)
         console.log(`  ✅ VIP 音乐任务：时空机器执行成功`)
         userResult.details.push('VIP 音乐任务：时空机器执行成功')
       } else {
-        const log = {
-          type: 'task',
-          time: timestamp,
-          message: `⚠️ VIP 音乐任务：${musicTaskData.msg || '执行完成'}`
-        }
+        const log = { type: 'task', time: timestamp, message: `⚠️ VIP 音乐任务：${musicTaskData.msg || '执行完成'}` }
         executionLogs.push(log)
         broadcastLog(log)
         console.log(`  ⚠️ VIP 音乐任务：${musicTaskData.msg || '执行完成'}`)
         userResult.details.push(`VIP 音乐任务：${musicTaskData.msg || '执行完成'}`)
       }
     } catch (e) {
-      const log = {
-        type: 'error',
-        time: timestamp,
-        message: `❌ VIP 音乐任务：${e.message}`
-      }
+      const log = { type: 'error', time: timestamp, message: `❌ VIP 音乐任务：${e.message}` }
       executionLogs.push(log)
       broadcastLog(log)
       console.error(`  ❌ VIP 音乐任务：${e.message}`)
@@ -294,109 +213,25 @@ async function executeTaskWithAPI(user, config, executionId, timestamp) {
     }
   }
   
-  // 自动发布动态
   if (config.enableAutoPost !== false) {
     try {
-      const postRes = await API.server.event({ 
-        cookie,
-        pid: config.postPlaylistId || '8402996200'
-      })
+      const postRes = await API.server.event({ cookie, pid: config.postPlaylistId || '8402996200' })
       const postData = postRes.body
       if (postData.code === 200) {
-        const log = {
-          type: 'task',
-          time: timestamp,
-          message: `✅ 自动发布动态：发布成功`
-        }
+        const log = { type: 'task', time: timestamp, message: `✅ 自动发布动态：发布成功` }
         executionLogs.push(log)
         broadcastLog(log)
         console.log(`  ✅ 自动发布动态：发布成功`)
         userResult.details.push('自动发布动态：发布成功')
       } else {
-        const log = {
-          type: 'task',
-          time: timestamp,
-          message: `⚠️ 自动发布动态：${postData.msg || '执行完成'}`
-        }
+        const log = { type: 'task', time: timestamp, message: `⚠️ 自动发布动态：${postData.msg || '执行完成'}` }
         executionLogs.push(log)
         broadcastLog(log)
         console.log(`  ⚠️ 自动发布动态：${postData.msg || '执行完成'}`)
         userResult.details.push(`自动发布动态：${postData.msg || '执行完成'}`)
       }
     } catch (e) {
-      const log = {
-        type: 'error',
-        time: timestamp,
-        message: `❌ 自动发布动态：${e.message}`
-      }
-      executionLogs.push(log)
-      broadcastLog(log)
-      console.error(`  ❌ 自动发布动态：${e.message}`)
-      userResult.details.push(`自动发布动态：${e.message}`)
-    }
-  }Logs.push(log)
-        broadcastLog(log)
-        console.log(`  ✅ VIP 音乐任务：时空机器执行成功`)
-        userResult.details.push('VIP 音乐任务：时空机器执行成功')
-      } else {
-        const log = {
-          type: 'task',
-          time: timestamp,
-          message: `⚠️ VIP 音乐任务：${musicTaskData.msg || '执行完成'}`
-        }
-        executionLogs.push(log)
-        broadcastLog(log)
-        console.log(`  ⚠️ VIP 音乐任务：${musicTaskData.msg || '执行完成'}`)
-        userResult.details.push(`VIP 音乐任务：${musicTaskData.msg || '执行完成'}`)
-      }
-    } catch (e) {
-      const log = {
-        type: 'error',
-        time: timestamp,
-        message: `❌ VIP 音乐任务：${e.message}`
-      }
-      executionLogs.push(log)
-      broadcastLog(log)
-      console.error(`  ❌ VIP 音乐任务：${e.message}`)
-      userResult.details.push(`VIP 音乐任务：${e.message}`)
-    }
-  }
-  
-  // 自动发布动态
-  if (config.enableAutoPost !== false) {
-    try {
-      const postRes = await api.event({ 
-        cookie,
-        pid: config.postPlaylistId || '8402996200'
-      })
-      const postData = postRes.body
-      if (postData.code === 200) {
-        const log = {
-          type: 'task',
-          time: timestamp,
-          message: `✅ 自动发布动态：发布成功`
-        }
-        executionLogs.push(log)
-        broadcastLog(log)
-        console.log(`  ✅ 自动发布动态：发布成功`)
-        userResult.details.push('自动发布动态：发布成功')
-      } else {
-        const log = {
-          type: 'task',
-          time: timestamp,
-          message: `⚠️ 自动发布动态：${postData.msg || '执行完成'}`
-        }
-        executionLogs.push(log)
-        broadcastLog(log)
-        console.log(`  ⚠️ 自动发布动态：${postData.msg || '执行完成'}`)
-        userResult.details.push(`自动发布动态：${postData.msg || '执行完成'}`)
-      }
-    } catch (e) {
-      const log = {
-        type: 'error',
-        time: timestamp,
-        message: `❌ 自动发布动态：${e.message}`
-      }
+      const log = { type: 'error', time: timestamp, message: `❌ 自动发布动态：${e.message}` }
       executionLogs.push(log)
       broadcastLog(log)
       console.error(`  ❌ 自动发布动态：${e.message}`)
@@ -404,7 +239,6 @@ async function executeTaskWithAPI(user, config, executionId, timestamp) {
     }
   }
   
-  // 更新摘要
   const errorCount = userResult.details.filter(d => d.includes('❌') || d.includes('失败') || d.includes('错误')).length
   if (errorCount > 0) {
     userResult.type = 'warning'
@@ -413,7 +247,7 @@ async function executeTaskWithAPI(user, config, executionId, timestamp) {
   
   return userResult
 }
-    
+
 async function executeTasks(config, executionId) {
   const results = []
   const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19)
@@ -421,43 +255,25 @@ async function executeTasks(config, executionId) {
   console.log('执行任务函数收到 config.users:', config.users)
   console.log('账号数量:', config.users ? config.users.length : 0)
   
-  const startLog = {
-    type: 'start',
-    time: timestamp,
-    message: '🚀 开始执行任务...'
-  }
+  const startLog = { type: 'start', time: timestamp, message: '🚀 开始执行任务...' }
   executionLogs.push(startLog)
   broadcastLog(startLog)
   console.log('开始执行任务...')
   
   if (!config.users || config.users.length === 0) {
-    const errorLog = {
-      type: 'error',
-      time: timestamp,
-      message: '❌ 没有配置任何账号，请先在"账号配置"页面添加账号'
-    }
+    const errorLog = { type: 'error', time: timestamp, message: '❌ 没有配置任何账号' }
     executionLogs.push(errorLog)
     broadcastLog(errorLog)
     console.log('错误：没有配置任何账号')
-    
-    const helpLog = {
-      type: 'info',
-      time: timestamp,
-      message: '💡 操作步骤：1. 点击"账号配置" → 2. 添加账号 → 3. 填写 MUSIC_U Cookie → 4. 返回首页执行任务'
-    }
+    const helpLog = { type: 'info', time: timestamp, message: '💡 操作步骤：1. 点击"账号配置" → 2. 添加账号 → 3. 填写 MUSIC_U Cookie → 4. 返回首页执行任务' }
     executionLogs.push(helpLog)
     broadcastLog(helpLog)
-    
     return { success: false, message: '没有配置任何账号' }
   }
   
   for (let i = 0; i < config.users.length; i++) {
     const user = config.users[i]
-    const startAccountLog = {
-      type: 'info',
-      time: timestamp,
-      message: `👤 开始执行账号 ${i + 1}/${config.users.length}: ${user.nickname}`
-    }
+    const startAccountLog = { type: 'info', time: timestamp, message: `👤 开始执行账号 ${i + 1}/${config.users.length}: ${user.nickname}` }
     executionLogs.push(startAccountLog)
     broadcastLog(startAccountLog)
     console.log(`执行账号 ${i + 1}/${config.users.length}: ${user.nickname}`)
@@ -467,34 +283,21 @@ async function executeTasks(config, executionId) {
       results.push(userResult)
     } catch (e) {
       console.error(`账号 ${user.nickname} 执行出错:`, e.message)
-      const errorResult = {
-        time: timestamp,
-        account: user.nickname,
-        type: 'error',
-        summary: '执行失败',
-        details: [`错误：${e.message}`]
-      }
+      const errorResult = { time: timestamp, account: user.nickname, type: 'error', summary: '执行失败', details: [`错误：${e.message}`] }
       results.push(errorResult)
     }
   }
   
   logs.unshift(...results)
-  while (logs.length > 50) {
-    logs.pop()
-  }
+  while (logs.length > 50) logs.pop()
   saveLogs()
   
-  const endLog = {
-    type: 'complete',
-    time: timestamp,
-    message: `✨ 任务执行完成，共执行 ${config.users.length} 个账号`
-  }
+  const endLog = { type: 'complete', time: timestamp, message: `✨ 任务执行完成，共执行 ${config.users.length} 个账号` }
   executionLogs.push(endLog)
   broadcastLog(endLog)
   console.log('任务执行完成')
   
   currentExecutionId = null
-  
   return { success: true, message: '任务执行成功' }
 }
 
@@ -538,9 +341,7 @@ const server = http.createServer(async (req, res) => {
     
     res.on('close', () => {
       const index = clients.indexOf(res)
-      if (index > -1) {
-        clients.splice(index, 1)
-      }
+      if (index > -1) clients.splice(index, 1)
       clearInterval(sendHeartbeat)
     })
     
@@ -566,7 +367,6 @@ const server = http.createServer(async (req, res) => {
     req.on('end', async () => {
       try {
         const requestData = JSON.parse(body)
-        // 前端发送的格式是 { config: {...} }，所以需要解包
         const config = requestData.config || requestData
         
         console.log('收到执行请求，完整数据:', JSON.stringify(requestData, null, 2))
@@ -588,11 +388,7 @@ const server = http.createServer(async (req, res) => {
   
   if (req.url === '/api/stop' && req.method === 'POST') {
     if (currentExecutionId) {
-      const stopLog = {
-        type: 'stopped',
-        time: new Date().toISOString().replace('T', ' ').substring(0, 19),
-        message: '⏹️ 任务已停止'
-      }
+      const stopLog = { type: 'stopped', time: new Date().toISOString().replace('T', ' ').substring(0, 19), message: '⏹️ 任务已停止' }
       executionLogs.push(stopLog)
       broadcastLog(stopLog)
       currentExecutionId = null
@@ -605,6 +401,24 @@ const server = http.createServer(async (req, res) => {
   if (req.url === '/api/execution-status' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ executing: currentExecutionId !== null, executionId: currentExecutionId }))
+    return
+  }
+  
+  if (req.url === '/api/save-config' && req.method === 'POST') {
+    let body = ''
+    req.on('data', chunk => { body += chunk.toString() })
+    req.on('end', () => {
+      try {
+        const config = JSON.parse(body)
+        fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2))
+        console.log('配置已保存到 config.json')
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: true, message: '配置已保存' }))
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: false, message: e.message }))
+      }
+    })
     return
   }
 

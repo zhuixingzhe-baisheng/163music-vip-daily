@@ -405,8 +405,9 @@ async function main() {
       runLogs.push(`✅ 任务完成`)
       
     } catch (error) {
-      console.error(`[${user.nickname}] ✗ 执行失败:`, error.message)
-      runLogs.push(`❌ 执行失败：${error.message}`)
+      const errorMsg = error ? (error.message || String(error)) : '未知错误'
+      console.error(`[${user.nickname}] ✗ 执行失败:`, errorMsg)
+      runLogs.push(`❌ 执行失败：${errorMsg}`)
     }
     
     console.log('-'.repeat(60))
@@ -639,8 +640,9 @@ async function runVipMusicTasks(cookie, playlistId, songCount, logs = []) {
     console.log('  ✓ VIP 音乐任务完成\n')
     logs.push('🎵 VIP 音乐任务：完成')
   } catch (error) {
-    console.log(`  ✗ VIP 音乐任务失败：${error.message}\n`)
-    logs.push(`🎵 VIP 音乐任务：失败 - ${error.message}`)
+    const errorMsg = error ? (error.message || String(error)) : '未知错误'
+    console.log(`  ✗ VIP 音乐任务失败：${errorMsg}\n`)
+    logs.push(`🎵 VIP 音乐任务：失败 - ${errorMsg}`)
   }
 }
 
@@ -822,8 +824,9 @@ async function runWithPush() {
     await main()
     runLogs.push('✅ 所有任务执行完成')
   } catch (error) {
-    console.error('主程序错误:', error)
-    runLogs.push(`❌ 执行失败：${error.message}`)
+    const errorMsg = error ? (error.message || String(error)) : '未知错误'
+    console.error('主程序错误:', errorMsg)
+    runLogs.push(`❌ 执行失败：${errorMsg}`)
   }
   
   // 推送通知（发送运行日志）

@@ -117,9 +117,9 @@ if (!config) {
       postSongCount: configData.postSongCount || 1,
       // 推送配置
       serverSendKey: configData.serverSendKey || '',
-      pushPlusToken: configData.pushPlusToken || '',
-      pushPlusChannel: configData.pushPlusChannel || 'wechat',
-      pushPlusWebhook: configData.pushPlusWebhook || ''
+      pushPlusToken: configData.pushplusToken || '',
+      pushPlusChannel: configData.pushplusChannel || 'wechat',
+      pushPlusWebhook: configData.pushplusWebhook || ''
     }
   } else {
     console.error('错误：未找到 config.json 配置文件，也未设置环境变量')

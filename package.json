@@ -25,6 +25,9 @@
     "@neteasecloudmusicapienhanced/api": "^4.34.3",
     "node-cron": "^3.0.3"
   },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
   "engines": {
     "node": ">=18.0.0"
   }

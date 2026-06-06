@@ -110,6 +110,16 @@ const saveSettings = () => {
           />
         </div>
         <div class="form-group">
+          <label>备用歌单 ID 列表</label>
+          <input 
+            type="text" 
+            v-model="configStore.settings.vipMusicFallbackPlaylistIds"
+            placeholder="7785066739,5453912201"
+            @blur="saveSettings"
+          />
+          <small class="help-text">用逗号分隔多个歌单 ID，当主歌单歌曲都已收藏时自动切换</small>
+        </div>
+        <div class="form-group">
           <label>处理歌曲数量</label>
           <input 
             type="number" 
@@ -118,6 +128,20 @@ const saveSettings = () => {
             max="10"
             @blur="saveSettings"
           />
+        </div>
+        <div class="feature-item" style="background: #fff; border: 1px solid #e0e0e0;">
+          <div class="feature-info">
+            <h3>上传听歌记录</h3>
+            <p>收藏歌曲后模拟播放并上传听歌记录（默认关闭，开启后任务执行时间会变长）</p>
+          </div>
+          <label class="switch">
+            <input 
+              type="checkbox" 
+              :checked="configStore.settings.enableVipMusicScrobble" 
+              @change="updateSetting('enableVipMusicScrobble', $event.target.checked)"
+            />
+            <span class="slider"></span>
+          </label>
         </div>
         <div class="form-group">
           <label>发布动态歌单 ID</label>

@@ -3,6 +3,7 @@
 const http = require('http')
 const fs = require('fs')
 const path = require('path')
+const taskRunner = require('./task-runner')
 
 const PORT = process.env.PORT || 3001
 const CONFIG_FILE = path.join(__dirname, 'config.json')
@@ -141,248 +142,47 @@ try {
 }
 
 async function executeTaskWithAPI(user, config, executionId, timestamp) {
-  const userResult = {
-    time: timestamp,
-    account: user.nickname,
-    type: 'success',
-    summary: '任务执行完成',
-    details: []
+  const logger = {
+    log: (...args) => {
+      const message = args.join(' ')
+      console.log(message)
+      const log = { type: 'info', time: Date.now(), message }
+      executionLogs.push(log)
+      broadcastLog(log)
+    },
+    error: (...args) => {
+      const message = args.join(' ')
+      console.error(message)
+      const log = { type: 'error', time: Date.now(), message }
+      executionLogs.push(log)
+      broadcastLog(log)
+    },
+    warn: (...args) => {
+      const message = args.join(' ')
+      console.warn(message)
+      const log = { type: 'warn', time: Date.now(), message }
+      executionLogs.push(log)
+      broadcastLog(log)
+    }
   }
   
-  const cookie = user.cookie
+  const onProgress = (log) => {
+    executionLogs.push({ type: log.type, time: Date.now(), message: log.message })
+    broadcastLog({ type: log.type, time: Date.now(), message: log.message })
+  }
   
   try {
-    const userStatus = await API.server.user_status({ cookie })
-    if (userStatus.body.code === 200 && userStatus.body.profile) {
-      const nickname = userStatus.body.profile.nickname || user.nickname
-      const level = userStatus.body.profile.level || 0
-      const log = { type: 'info', time: timestamp, message: `👤 登录成功：${nickname} (Lv.${level})` }
-      executionLogs.push(log)
-      broadcastLog(log)
-      console.log(`  👤 登录成功：${nickname} (Lv.${level})`)
-    }
-  } catch (e) {
-    console.error('获取用户信息失败:', e.message)
+    const result = await taskRunner.executeUserTasks(user, config, { logger, onProgress })
+    logs.push(result)
+    saveLogs()
+    return result
+  } catch (error) {
+    const errorLog = { type: 'error', time: Date.now(), message: `❌ 账号 ${user.nickname} 执行失败：${error.message}` }
+    executionLogs.push(errorLog)
+    broadcastLog(errorLog)
+    console.error(`❌ 账号 ${user.nickname} 执行失败：${error.message}`)
+    throw error
   }
-  
-  if (config.enableYunbeiSign !== false) {
-    try {
-      const signRes = await API.server.daily_signin({ cookie, type: 1 })
-      const signData = signRes.body
-      if (signData.code === 200 || signData.code === -2) {
-        const yunbei = signData.yunbei || 0
-        const log = { type: 'task', time: timestamp, message: `✅ 云贝签到（安卓端）：获得 ${yunbei} 云贝` }
-        executionLogs.push(log)
-        broadcastLog(log)
-        console.log(`  ✅ 云贝签到（安卓端）：获得 ${yunbei} 云贝`)
-        userResult.details.push(`云贝签到（安卓端）：获得 ${yunbei} 云贝`)
-      } else if (signData.msg && signData.msg.includes('已经签到')) {
-        const log = { type: 'task', time: timestamp, message: `⚠️ 云贝签到（安卓端）：今日已签到` }
-        executionLogs.push(log)
-        broadcastLog(log)
-        console.log(`  ⚠️ 云贝签到（安卓端）：今日已签到`)
-        userResult.details.push('云贝签到（安卓端）：今日已签到')
-      } else {
-        throw new Error(signData.msg || '签到失败')
-      }
-    } catch (e) {
-      const log = { type: 'error', time: timestamp, message: `❌ 云贝签到（安卓端）：${e.message}` }
-      executionLogs.push(log)
-      broadcastLog(log)
-      console.error(`  ❌ 云贝签到（安卓端）：${e.message}`)
-      userResult.details.push(`云贝签到（安卓端）：${e.message}`)
-    }
-  }
-  
-  if (config.enableYunbeiSignPC !== false) {
-    try {
-      const signRes = await API.server.daily_signin({ cookie, type: 0 })
-      const signData = signRes.body
-      if (signData.code === 200 || signData.code === -2) {
-        const yunbei = signData.yunbei || 0
-        const log = { type: 'task', time: timestamp, message: `✅ 云贝签到（PC 端）：获得 ${yunbei} 云贝` }
-        executionLogs.push(log)
-        broadcastLog(log)
-        console.log(`  ✅ 云贝签到（PC 端）：获得 ${yunbei} 云贝`)
-        userResult.details.push(`云贝签到（PC 端）：获得 ${yunbei} 云贝`)
-      } else if (signData.msg && signData.msg.includes('已经签到')) {
-        const log = { type: 'task', time: timestamp, message: `⚠️ 云贝签到（PC 端）：今日已签到` }
-        executionLogs.push(log)
-        broadcastLog(log)
-        console.log(`  ⚠️ 云贝签到（PC 端）：今日已签到`)
-        userResult.details.push('云贝签到（PC 端）：今日已签到')
-      } else {
-        throw new Error(signData.msg || '签到失败')
-      }
-    } catch (e) {
-      const log = { type: 'error', time: timestamp, message: `❌ 云贝签到（PC 端）：${e.message}` }
-      executionLogs.push(log)
-      broadcastLog(log)
-      console.error(`  ❌ 云贝签到（PC 端）：${e.message}`)
-      userResult.details.push(`云贝签到（PC 端）：${e.message}`)
-    }
-  }
-  
-  if (config.enableVipSign !== false) {
-    try {
-      const signRes = await API.server.vip_task_signin({ cookie })
-      const signData = signRes.body
-      if (signData.code === 200) {
-        const log = { type: 'task', time: timestamp, message: `✅ VIP 乐签打卡：成功` }
-        executionLogs.push(log)
-        broadcastLog(log)
-        console.log(`  ✅ VIP 乐签打卡：成功`)
-        userResult.details.push('VIP 乐签打卡：成功')
-      } else if (signData.code === -2 || (signData.message && signData.message.includes('今日已打卡'))) {
-        const log = { type: 'task', time: timestamp, message: `⚠️ VIP 乐签打卡：今日已打卡` }
-        executionLogs.push(log)
-        broadcastLog(log)
-        console.log(`  ⚠️ VIP 乐签打卡：今日已打卡`)
-        userResult.details.push('VIP 乐签打卡：今日已打卡')
-      } else {
-        throw new Error(signData.message || 'VIP 打卡失败')
-      }
-    } catch (e) {
-      const log = { type: 'error', time: timestamp, message: `❌ VIP 乐签打卡：${e.message}` }
-      executionLogs.push(log)
-      broadcastLog(log)
-      console.error(`  ❌ VIP 乐签打卡：${e.message}`)
-      userResult.details.push(`VIP 乐签打卡：${e.message}`)
-    }
-  }
-  
-  if (config.enableVipGrowthpoint !== false) {
-    try {
-      const growthRes = await API.server.vip_growthpoint_get({ cookie })
-      const growthData = growthRes.body
-      if (growthData.code === 200) {
-        const growthpoint = growthData.data.vip_growthpoint || 0
-        const log = { type: 'task', time: timestamp, message: `✅ VIP 成长值领取：获得 ${growthpoint} 成长值` }
-        executionLogs.push(log)
-        broadcastLog(log)
-        console.log(`  ✅ VIP 成长值领取：获得 ${growthpoint} 成长值`)
-        userResult.details.push(`VIP 成长值领取：获得 ${growthpoint} 成长值`)
-      } else if (growthData.code === -2 || (growthData.message && growthData.message.includes('暂无'))) {
-        const log = { type: 'info', time: timestamp, message: `ℹ️  VIP 成长值领取：暂无可领取的成长值` }
-        executionLogs.push(log)
-        broadcastLog(log)
-        console.log(`  ℹ️  VIP 成长值领取：暂无可领取的成长值`)
-        userResult.details.push('VIP 成长值领取：暂无可领取')
-      } else {
-        throw new Error(growthData.message || '领取成长值失败')
-      }
-    } catch (e) {
-      const log = { type: 'error', time: timestamp, message: `❌ VIP 成长值领取：${e.message}` }
-      executionLogs.push(log)
-      broadcastLog(log)
-      console.error(`  ❌ VIP 成长值领取：${e.message}`)
-      userResult.details.push(`VIP 成长值领取：${e.message}`)
-    }
-  }
-  
-  if (config.enableVipMusicTasks !== false) {
-    const playlistId = config.vipMusicPlaylistId || 8402996200
-    const songCount = config.vipMusicSongCount || 3
-    
-    try {
-      const playlistRes = await API.server.playlist_detail({ id: playlistId, cookie })
-      const playlistData = playlistRes.body
-      if (playlistData.code === 200 && playlistData.playlist && playlistData.playlist.trackIds) {
-        const trackIds = playlistData.playlist.trackIds.slice(0, songCount)
-        console.log(`  🎵 会员雷达歌单 (${playlistId})，处理 ${trackIds.length} 首歌曲`)
-        
-        let collectedCount = 0
-        for (const track of trackIds) {
-          try {
-            const likeRes = await API.server.like({ like: true, id: track.id, cookie })
-            if (likeRes.body.code === 200) {
-              collectedCount++
-              console.log(`    ✅ 收藏歌曲：${track.id}`)
-            }
-          } catch (e) {
-            console.error(`    ❌ 收藏歌曲失败：${track.id}`, e.message)
-          }
-        }
-        
-        const log = { type: 'task', time: timestamp, message: `✅ VIP 音乐任务：收藏 ${collectedCount}/${trackIds.length} 首歌曲` }
-        executionLogs.push(log)
-        broadcastLog(log)
-        console.log(`  ✅ VIP 音乐任务：收藏 ${collectedCount}/${trackIds.length} 首歌曲`)
-        userResult.details.push(`VIP 音乐任务：收藏 ${collectedCount}/${trackIds.length} 首歌曲`)
-      } else {
-        throw new Error('获取歌单失败')
-      }
-    } catch (e) {
-      const log = { type: 'error', time: timestamp, message: `❌ VIP 音乐任务：${e.message}` }
-      executionLogs.push(log)
-      broadcastLog(log)
-      console.error(`  ❌ VIP 音乐任务：${e.message}`)
-      userResult.details.push(`VIP 音乐任务：${e.message}`)
-    }
-  }
-  
-  if (config.enableAutoPost !== false) {
-    const postSongCount = Math.max(1, Math.min(3, config.postSongCount || 1))
-    const playlistId = config.postPlaylistId || 8402996200
-    
-    if (config.deletePreviousPost) {
-      try {
-        const eventsRes = await API.server.event({ pagesize: 1, cookie })
-        if (eventsRes.body.code === 200 && eventsRes.body.events && eventsRes.body.events.length > 0) {
-          const lastEventId = eventsRes.body.events[0].id
-          const delRes = await API.server.event_del({ evId: lastEventId, cookie })
-          if (delRes.body.code === 200) {
-            const log = { type: 'task', time: timestamp, message: `🗑️  删除上次动态：成功` }
-            executionLogs.push(log)
-            broadcastLog(log)
-            console.log(`  🗑️  删除上次动态：成功`)
-            userResult.details.push('删除上次动态：成功')
-          }
-        }
-      } catch (e) {
-        const log = { type: 'warn', time: timestamp, message: `⚠️  删除上次动态失败：${e.message}` }
-        executionLogs.push(log)
-        broadcastLog(log)
-        console.warn(`  ⚠️  删除上次动态失败：${e.message}`)
-      }
-    }
-    
-    try {
-      const playlistRes = await API.server.playlist_detail({ id: playlistId, cookie })
-      const playlistData = playlistRes.body
-      if (playlistData.code === 200 && playlistData.playlist && playlistData.playlist.trackIds) {
-        const trackIds = playlistData.playlist.trackIds.slice(0, postSongCount)
-        const shareRes = await API.server.share_resource({ type: 'playlist', id: playlistId, msg: '每日推荐', cookie })
-        if (shareRes.body.code === 200) {
-          const log = { type: 'task', time: timestamp, message: `✅ 自动发布动态：分享歌单 ${playlistId}` }
-          executionLogs.push(log)
-          broadcastLog(log)
-          console.log(`  ✅ 自动发布动态：分享歌单 ${playlistId}`)
-          userResult.details.push(`自动发布动态：分享歌单 ${playlistId}`)
-        }
-      } else {
-        throw new Error('获取歌单失败')
-      }
-    } catch (e) {
-      const log = { type: 'error', time: timestamp, message: `❌ 自动发布动态：${e.message}` }
-      executionLogs.push(log)
-      broadcastLog(log)
-      console.error(`  ❌ 自动发布动态：${e.message}`)
-      userResult.details.push(`自动发布动态：${e.message}`)
-    }
-  }
-  
-  if (userResult.details.length > 0) {
-    const summaryLog = { type: 'success', time: timestamp, message: `🎉 ${user.nickname} - 任务执行完成` }
-    executionLogs.push(summaryLog)
-    broadcastLog(summaryLog)
-    console.log(`🎉 ${user.nickname} - 任务执行完成`)
-  }
-  
-  logs.push(userResult)
-  saveLogs()
-  
-  return userResult
 }
 
 const server = http.createServer(async (req, res) => {
@@ -405,7 +205,7 @@ const server = http.createServer(async (req, res) => {
   if (req.url === '/api/config' && req.method === 'GET') {
     try {
       if (!fs.existsSync(CONFIG_FILE)) {
-        const defaultConfig = { users: [], enableYunbeiSign: true, enableYunbeiSignPC: true, enableVipSign: true, enableVipGrowthpoint: true, showVipTaskList: true, enableVipMusicTasks: true, vipMusicPlaylistId: 8402996200, vipMusicSongCount: 3, enableAutoPost: true, deletePreviousPost: true, postPlaylistId: 8402996200, postSongCount: 1, serverSendKey: '', pushplusToken: '', pushplusChannel: 'wechat', pushplusWebhook: '' }
+        const defaultConfig = { users: [], enableYunbeiSign: true, enableYunbeiSignPC: true, enableVipSign: true, enableVipGrowthpoint: true, showVipTaskList: true, enableVipMusicTasks: true, vipMusicPlaylistId: 8402996200, vipMusicFallbackPlaylistIds: [7785066739, 5453912201], vipMusicSongCount: 4, enableVipMusicScrobble: false, enableAutoPost: true, deletePreviousPost: true, postPlaylistId: 8402996200, postSongCount: 1, serverSendKey: '', pushplusToken: '', pushplusChannel: 'wechat', pushplusWebhook: '' }
         fs.writeFileSync(CONFIG_FILE, JSON.stringify(defaultConfig, null, 2))
         console.log('创建默认配置文件')
       }

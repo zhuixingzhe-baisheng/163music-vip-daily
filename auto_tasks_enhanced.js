@@ -1,5 +1,5 @@
 /**
- * 网易云自动任务脚本 - 使用 API Enhanced
+ * 网易云音乐自动任务脚本 - 使用 API Enhanced
  * 
  * 功能:
  * - 云贝签到（安卓端 + PC 端）
@@ -16,41 +16,25 @@
 
 const fs = require('fs')
 const path = require('path')
+const taskRunner = require('./task-runner')
+const API = require('@neteasecloudmusicapienhanced/api')
 
 const {
+  vip_info,
+  vip_sign_info,
+  vip_sign,
+  vip_sign_detail,
   yunbei,
   yunbei_sign,
-  vip_sign,
-  vip_sign_info,
-  vip_sign_detail,
   vip_tasks,
   vip_growthpoint_get,
-  musician_tasks,
-  vip_info,
+  event_del,
+  share_resource,
   playlist_detail,
   song_like,
   scrobble,
-  share_resource,
-  event_del
+  likelist
 } = require('@neteasecloudmusicapienhanced/api')
-
-// 获取新版 VIP 任务列表 (直接 HTTP 调用，绕过 xeapi 加密)
-async function getVipTasksV1(cookie, userId = '') {
-  const data = {}
-  if (userId) data.userId = userId
-  
-  const response = await fetch('https://interface.music.163.com/api/middle/vip/mission/user/progress/list', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Cookie': cookie,
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    },
-    body: new URLSearchParams(data).toString()
-  })
-  
-  return await response.json()
-}
 
 // 加载配置文件 - 支持环境变量和配置文件两种方式
 const configPath = path.join(__dirname, 'config.json')
@@ -82,7 +66,8 @@ function loadConfigFromEnv() {
     showVipTaskList: true,
     enableVipMusicTasks: true,
     vipMusicPlaylistId: 8402996200,
-    vipMusicSongCount: 3,
+    vipMusicSongCount: 4,
+    enableVipMusicScrobble: false,
     enableAutoPost: true,
     deletePreviousPost: true,
     postPlaylistId: 8402996200,
@@ -102,7 +87,10 @@ if (!config) {
   if (fs.existsSync(configPath)) {
     const configData = JSON.parse(fs.readFileSync(configPath, 'utf8'))
     config = {
-      users: configData.users || [],
+      users: (configData.users || []).map(u => ({
+        nickname: u.nickname || u.name || '账号 1',
+        cookie: u.cookie
+      })),
       enableYunbeiSign: configData.enableYunbeiSign !== false,
       enableYunbeiSignPC: configData.enableYunbeiSignPC !== false,
       enableVipSign: configData.enableVipSign !== false,
@@ -110,7 +98,9 @@ if (!config) {
       showVipTaskList: configData.showVipTaskList !== false,
       enableVipMusicTasks: configData.enableVipMusicTasks !== false,
       vipMusicPlaylistId: configData.vipMusicPlaylistId || 8402996200,
-      vipMusicSongCount: configData.vipMusicSongCount || 3,
+      vipMusicFallbackPlaylistIds: configData.vipMusicFallbackPlaylistIds || [7785066739, 5453912201],
+      vipMusicSongCount: configData.vipMusicSongCount || 4,
+      enableVipMusicScrobble: configData.enableVipMusicScrobble !== undefined ? configData.enableVipMusicScrobble : false,
       enableAutoPost: configData.enableAutoPost !== false,
       deletePreviousPost: configData.deletePreviousPost !== false,
       postPlaylistId: configData.postPlaylistId || 8402996200,
@@ -269,7 +259,7 @@ async function main() {
       if (config.enableVipMusicTasks) {
         console.log(`[${user.nickname}] 执行 VIP 音乐任务...`)
         runLogs.push(`🎵 VIP 音乐任务：执行中...`)
-        await runVipMusicTasks(user.cookie, config.vipMusicPlaylistId, config.vipMusicSongCount, runLogs)
+        await runVipMusicTasks(user.cookie, config.vipMusicPlaylistId, config.vipMusicSongCount, runLogs, config.vipMusicFallbackPlaylistIds, config.enableVipMusicScrobble)
       }
       
       // VIP 乐签打卡
@@ -334,7 +324,7 @@ async function main() {
       // 获取 VIP 任务列表（新版 /vip/task/v1）
       if (config.showVipTaskList) {
         console.log(`[${user.nickname}] 获取 VIP 任务列表 (/vip/task/v1)...`)
-        const vipTasksV1Result = await getVipTasksV1(user.cookie, user.id || '')
+        const vipTasksV1Result = await taskRunner.getVipTasksV1(user.cookie, user.id || '')
         if (vipTasksV1Result.code === 200 && vipTasksV1Result.data) {
           console.log(`[${user.nickname}] = VIP 任务列表 =`)
           const taskList = Array.isArray(vipTasksV1Result.data) ? vipTasksV1Result.data : (vipTasksV1Result.data.missionList || [])
@@ -429,45 +419,11 @@ async function main() {
   runLogs.push(`⏱️ 总耗时：${duration}秒`)
 }
 
-// 延时函数
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
-
-// 提交播放状态接口
-async function play_state_submit(cookie, resourceId, resourceType = 'song', progress = 0, playMode = 'list_loop', sessionId = null) {
-  if (!sessionId) {
-    sessionId = `SESSION_${Date.now()}_${resourceId}`
-  }
-  
-  const playStateSubmitReq = JSON.stringify({
-    resource: {
-      id: String(resourceId),
-      type: resourceType
-    },
-    progress: progress,
-    sessionId: sessionId,
-    playMode: playMode
-  })
-  
-  const baseUrl = 'https://music.163.com/api/relay/play/state/submit'
-  
-  const response = await fetch(baseUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Cookie': cookie
-    },
-    body: new URLSearchParams({
-      playStateSubmitReq: playStateSubmitReq
-    }).toString()
-  })
-  
-  return await response.json()
-}
+// 使用 task-runner 中的公共函数
+const { sleep, playStateSubmit } = taskRunner
 
 // VIP 音乐任务函数
-async function runVipMusicTasks(cookie, playlistId, songCount, logs = []) {
+async function runVipMusicTasks(cookie, playlistId, songCount, logs = [], fallbackPlaylistIds = [7785066739, 5453912201], enableScrobble = false) {
   try {
     // 先获取用户信息获取 uid
     const userProfile = await vip_info({ cookie })
@@ -476,164 +432,248 @@ async function runVipMusicTasks(cookie, playlistId, songCount, logs = []) {
       userId = userProfile.body.data.userId
     }
     
-    const playlist = await playlist_detail({ id: playlistId })
-    if (playlist.body.code !== 200) {
-      console.log(`  ✗ 获取歌单失败`)
-      logs.push('  ✗ VIP 音乐任务：获取歌单失败')
+    // 尝试主歌单和备用歌单
+    let currentPlaylistId = playlistId
+    let allTracks = []
+    let usedFallbackIndex = -1
+    
+    // 首先尝试主歌单
+    console.log(`  获取主歌单 ${playlistId}...`)
+    let playlist = await playlist_detail({ id: playlistId })
+    
+    if (playlist.body.code === 200 && playlist.body.playlist && playlist.body.playlist.tracks) {
+      allTracks = playlist.body.playlist.tracks || []
+    } else {
+      console.log(`  ⚠️ 主歌单 ${playlistId} 获取失败`)
+    }
+    
+    // 如果主歌单无法获取或为空，依次尝试备用歌单
+    if (allTracks.length === 0) {
+      console.log(`  ⚠️ 主歌单为空或获取失败，尝试备用歌单...`)
+      
+      for (let i = 0; i < fallbackPlaylistIds.length; i++) {
+        const fallbackId = fallbackPlaylistIds[i]
+        console.log(`  尝试备用歌单 ${fallbackId}...`)
+        playlist = await playlist_detail({ id: fallbackId })
+        
+        if (playlist.body.code === 200 && playlist.body.playlist && playlist.body.playlist.tracks) {
+          allTracks = playlist.body.playlist.tracks || []
+          currentPlaylistId = fallbackId
+          usedFallbackIndex = i
+          if (allTracks.length > 0) {
+            console.log(`  ✅ 备用歌单 ${fallbackId} 获取成功，共 ${allTracks.length} 首歌曲`)
+            break
+          }
+        } else {
+          console.log(`  ⚠️ 备用歌单 ${fallbackId} 获取失败`)
+        }
+      }
+    }
+    
+    if (allTracks.length === 0) {
+      console.log(`  ✗ 所有歌单都无法获取`)
+      logs.push('  ✗ VIP 音乐任务：所有歌单都无法获取')
       return
     }
     
-    const tracks = playlist.body.playlist.tracks || []
-    if (tracks.length === 0) {
-      console.log(`  ✗ 歌单为空`)
-      logs.push('  ✗ VIP 音乐任务：歌单为空')
+    // 获取所有歌曲 ID（不限制数量）
+    const allTrackIds = allTracks.map(t => t.id)
+    
+    // 检查已收藏的歌曲，过滤掉已收藏的
+    console.log('  检查歌曲收藏状态...')
+    let unlikedTracks = []
+    try {
+      const likedResult = await likelist({ uid: userId, cookie })
+      if (likedResult.body.code === 200 && likedResult.body.ids) {
+        const likedIds = new Set(likedResult.body.ids)
+        unlikedTracks = allTracks.filter(t => !likedIds.has(t.id))
+      } else {
+        unlikedTracks = allTracks
+      }
+    } catch (e) {
+      console.log(`  ⚠️ 获取收藏列表失败，处理所有歌曲：${e.message}`)
+      unlikedTracks = allTracks
+    }
+    
+    // 从未收藏的歌曲中挑选 songCount 首
+    let songs = unlikedTracks.slice(0, songCount)
+    
+    // 如果当前歌单所有歌曲都已收藏，继续尝试其他备用歌单
+    if (songs.length === 0) {
+      const remainingFallbacks = fallbackPlaylistIds.slice(usedFallbackIndex + 1)
+      
+      if (remainingFallbacks.length > 0) {
+        console.log(`  ⚠️ 歌单 ${currentPlaylistId} 的所有歌曲都已收藏，继续尝试其他备用歌单...`)
+        
+        for (const fallbackId of remainingFallbacks) {
+          console.log(`  尝试备用歌单 ${fallbackId}...`)
+          playlist = await playlist_detail({ id: fallbackId })
+          
+          if (playlist.body.code === 200 && playlist.body.playlist && playlist.body.playlist.tracks) {
+            const fallbackAllTracks = playlist.body.playlist.tracks
+            const fallbackAllTrackIds = fallbackAllTracks.map(t => t.id)
+            
+            try {
+              const likedResult = await likelist({ uid: userId, cookie })
+              if (likedResult.body.code === 200 && likedResult.body.ids) {
+                const likedIds = new Set(likedResult.body.ids)
+                const fallbackUnliked = fallbackAllTracks.filter(t => !likedIds.has(t.id))
+                const fallbackSongs = fallbackUnliked.slice(0, songCount)
+                
+                if (fallbackSongs.length > 0) {
+                  currentPlaylistId = fallbackId
+                  songs = fallbackSongs
+                  console.log(`  ✅ 备用歌单 ${fallbackId} 找到 ${songs.length} 首未收藏歌曲`)
+                  break
+                } else {
+                  console.log(`  ⊘ 备用歌单 ${fallbackId} 的所有歌曲都已收藏`)
+                }
+              }
+            } catch (e) {
+              console.log(`  ⚠️ 检查歌单 ${fallbackId} 收藏状态失败：${e.message}`)
+            }
+          } else {
+            console.log(`  ⚠️ 备用歌单 ${fallbackId} 获取失败`)
+          }
+        }
+      }
+    }
+    
+    // 如果所有歌单都已收藏，跳过任务
+    if (songs.length === 0) {
+      console.log(`  ⊘ 所有歌单的歌曲都已收藏，跳过本次任务`)
+      logs.push('🎵 VIP 音乐任务：所有歌单的歌曲都已收藏，跳过')
       return
     }
     
-    const songs = tracks.slice(0, songCount).map(t => ({
-      id: t.id,
-      name: t.name,
-      artists: t.ar.map(a => a.name).join(','),
-      dt: t.dt
-    }))
-    
-    console.log(`  准备处理 ${songs.length} 首歌曲:`)
-    songs.forEach((song, i) => {
-      const duration = (song.dt / 1000 / 60).toFixed(2)
-      console.log(`    ${i + 1}. ${song.name} - ${song.artists} (${duration}分钟)`)
-    })
+    console.log(`🎵 会员雷达歌单 (${currentPlaylistId})，未收藏歌曲 ${unlikedTracks.length} 首，本次挑选 ${songs.length} 首`)
     console.log()
     
     let successCount = 0
     
-    // 逐首执行：收藏→提交播放状态 (初)→等待→提交播放状态 (终)→上传听歌记录→取消收藏
-    for (let i = 0; i < songs.length; i++) {
-      const song = songs[i]
-      const playTime = Math.floor(song.dt / 1000)
-      const sessionId = `SESSION_${Date.now()}_${song.id}`
+    // 逐首执行：收藏→检查→补足→取消收藏
+    const targetCount = songCount
+    const successTrackIds = []
+    let collectionIndex = 0
+    
+    // 循环收藏直到满 targetCount 首
+    while (successTrackIds.length < targetCount && collectionIndex < allTrackIds.length) {
+      const batch = unlikedTracks.slice(collectionIndex, collectionIndex + songCount)
+      if (batch.length === 0) break
       
-      console.log(`  [歌曲 ${i + 1}/${songs.length}] ${song.name} - ${song.artists}`)
-      console.log('  ' + '-'.repeat(40))
-      
-      // 1. 收藏歌曲
-      console.log('  [1] 收藏歌曲...')
-      try {
-        const likeResult = await song_like({ cookie, id: song.id, like: true })
-        if (likeResult.body.code === 200 || likeResult.body.code === 201) {
-          console.log(`    ✓ 收藏成功`)
+      for (let i = 0; i < batch.length; i++) {
+        if (successTrackIds.length >= targetCount) break
+        
+        const song = batch[i]
+        const playTime = Math.floor(song.dt / 1000)
+        const sessionId = `SESSION_${Date.now()}_${song.id}`
+        
+        console.log(`  [待收藏 ${successTrackIds.length + 1}/${targetCount}] ${song.name} - ${song.artists}`)
+        console.log('  ' + '-'.repeat(40))
+        
+        // 1. 收藏歌曲
+        console.log('  [1] 收藏歌曲...')
+        try {
+          const likeResult = await song_like({ cookie, id: song.id, like: true })
+          if (likeResult.body.code === 200 || likeResult.body.code === 201) {
+            console.log(`    ✓ 收藏成功`)
+            successTrackIds.push(song.id)
+          } else if (likeResult.body.code === 502) {
+            console.log(`    ⊘ 歌曲已收藏，跳过`)
+          } else {
+            console.log(`    ✗ 收藏失败：${likeResult.body.message || '未知错误'}`)
+          }
+        } catch (e) {
+          console.log(`    ✗ 收藏失败：${e.message}`)
         }
-      } catch (e) {
-        console.log(`    ✗ 收藏失败：${e.message}`)
+        
+        collectionIndex++
+        
+        // 如果不启用听歌记录，在歌曲之间添加 10-15 秒随机延时
+        if (!enableScrobble && successTrackIds.length < targetCount && collectionIndex < unlikedTracks.length) {
+          const delaySeconds = Math.floor(Math.random() * 6) + 10
+          console.log(`    ⏱️  等待 ${delaySeconds} 秒后处理下一首...`)
+          await sleep(delaySeconds * 1000)
+        }
       }
       
-      await sleep(1000)
-      
-      // 2. 提交播放状态（初始 progress=0）
-      console.log('  [2] 提交播放状态 (初始)...')
-      try {
-        const playStateResult = await play_state_submit(
-          cookie,
-          song.id,
-          'song',
-          0,
-          'list_loop',
-          sessionId
-        )
-        if (playStateResult.code === 200) {
-          console.log(`    ✓ 播放状态已提交 (sessionId: ${sessionId})`)
+      // 如果当前批次已处理完但还没满 targetCount，继续检查收藏状态获取新的未收藏列表
+      if (successTrackIds.length < targetCount && collectionIndex < allTrackIds.length) {
+        console.log(`  ⏳ 继续检查剩余歌曲...`)
+        try {
+          const likedResult = await likelist({ uid: userId, cookie })
+          if (likedResult.body.code === 200 && likedResult.body.ids) {
+            const likedIds = new Set(likedResult.body.ids)
+            unlikedTracks = allTracks.filter(t => !likedIds.has(t.id) && !successTrackIds.includes(t.id))
+          }
+        } catch (e) {
+          console.log(`  ⚠️ 刷新收藏状态失败：${e.message}`)
         }
-      } catch (e) {
-        console.log(`    ✗ 提交失败：${e.message}`)
       }
-      
-      await sleep(1000)
-      
-      // 3. 等待音乐时长（模拟播放）
-      const waitTime = playTime * 1000
-      console.log(`  [3] 模拟播放中... (等待 ${Math.floor(waitTime / 1000)} 秒)`)
-      await sleep(waitTime)
-      
-      // 4. 提交播放状态（最终 progress=歌曲时长）
-      console.log('  [4] 提交播放状态 (完成)...')
-      try {
-        const finalResult = await play_state_submit(
-          cookie,
-          song.id,
-          'song',
-          playTime,
-          'list_loop',
-          sessionId
-        )
-        if (finalResult.code === 200) {
-          console.log(`    ✓ 播放完成进度已更新 (progress: ${playTime}秒)`)
-        }
-      } catch (e) {
-        console.log(`    ✗ 提交失败：${e.message}`)
-      }
-      
-      await sleep(1000)
-      
-      // 5. 上传听歌记录
-      console.log('  [5] 上传听歌记录...')
-      try {
-        const scrobbleResult = await scrobble({
-          cookie,
-          id: song.id,
-          sourceid: playlistId,
-          time: playTime
-        })
-        if (scrobbleResult.body.code === 200) {
-          const timeStr = (playTime / 60).toFixed(2)
-          console.log(`    ✓ 听歌记录已上传 (${timeStr}分钟)`)
-          successCount++
-        }
-      } catch (e) {
-        console.log(`    ✗ 上传失败：${e.message}`)
-      }
-      
-      await sleep(1000)
-      
-      // 6. 取消收藏
-      console.log('  [6] 取消收藏...')
-      try {
-        const unlikeResult = await song_like({ 
-          cookie, 
-          id: song.id, 
-          like: false
-        })
-        if (unlikeResult.body.code === 200) {
-          console.log(`    ✓ 取消收藏成功`)
-        } else {
-          console.log(`    ✗ 取消收藏失败 (code: ${unlikeResult.body.code})`)
-        }
-      } catch (e) {
-        console.log(`    ✗ 取消收藏失败：${e.message}`)
-      }
-      
-      console.log()
-      await sleep(1000)
     }
     
-    // 检查并领取成长值
-    console.log('  [7] 检查并领取成长值...')
-    const tasks = await vip_tasks({ cookie })
-    if (tasks.body.code === 200) {
-      const likeTask = tasks.body.data.taskList
-        .flatMap(g => g.taskItems)
-        .find(t => (t.name || t.description || '').includes('收藏'))
-      
-      if (likeTask && likeTask.currentProgress >= likeTask.targetWorth && likeTask.needReceive) {
-        const rewardResult = await vip_growthpoint_get({
-          cookie,
-          ids: likeTask.taskId
-        })
-        if (rewardResult.body.code === 200 && rewardResult.body.data) {
-          console.log(`    ✓ 领取成功 +${likeTask.growthPoint}`)
-          logs.push(`🎵 VIP 音乐任务：完成 (+${likeTask.growthPoint} 成长值)` || '完成')
-        }
+    // 2. 收藏完成后延时 5-10 秒
+    const finalDelay = Math.floor(Math.random() * 6) + 5
+    console.log(`\n  ⏱️  收藏完成，等待 ${finalDelay} 秒后取消收藏...`)
+    await sleep(finalDelay * 1000)
+    
+    // 3. 获取用户红心歌单 ID
+    console.log(`\n  📋  获取红心歌单 ID...`)
+    let likedPlaylistId = ''
+    try {
+      const userProfile = await vip_info({ cookie })
+      // 红心歌单 ID 直接从 API 响应获取
+      if (userProfile.body?.data?.likedPlaylistId) {
+        likedPlaylistId = userProfile.body.data.likedPlaylistId.toString()
+        console.log(`  ✅ 红心歌单 ID: ${likedPlaylistId}`)
+      } else if (userProfile.body?.data?.userId) {
+        // 备用：使用用户 ID 作为红心歌单 ID
+        likedPlaylistId = userProfile.body.data.userId.toString()
+        console.log(`  ✅ 红心歌单 ID (使用 userId): ${likedPlaylistId}`)
       } else {
-        console.log(`    ⊘ 无成长值可领取`)
-        logs.push(`🎵 VIP 音乐任务：${successCount}/${songs.length} 首歌曲已处理`)
+        // 尝试从 user_account 获取
+        const userAccount = await API.user_account({ cookie })
+        if (userAccount.body?.account?.id) {
+          likedPlaylistId = userAccount.body.account.id.toString()
+          console.log(`  ✅ 红心歌单 ID (使用 accountId): ${likedPlaylistId}`)
+        }
+      }
+    } catch (e) {
+      console.log(`  ⚠️  获取红心歌单 ID 失败：${e.message}`)
+    }
+    
+    // 4. 使用 playlist_tracks API 取消收藏
+    console.log(`\n  🗑️  开始取消收藏（使用红心歌单 API）...`)
+    const { playlist_tracks } = API
+    
+    if (!likedPlaylistId) {
+      console.log(`  ❌ 无法获取红心歌单 ID，跳过取消收藏`)
+    } else {
+      for (let i = 0; i < successTrackIds.length; i++) {
+        const trackId = successTrackIds[i]
+        try {
+          // 使用 playlist_tracks API 从红心歌单删除
+          const unlikeResult = await playlist_tracks({
+            cookie,
+            pid: likedPlaylistId,
+            tracks: trackId.toString(),
+            op: 'del'
+          })
+          
+          console.log(`    取消收藏响应：`, JSON.stringify(unlikeResult.body || unlikeResult))
+          
+          if (unlikeResult.body?.code === 200 || unlikeResult.status === 200) {
+            console.log(`    ✓ 取消成功：${trackId}`)
+          } else {
+            console.log(`    ✗ 取消失败：${trackId}`)
+          }
+        } catch (e) {
+          console.log(`    ✗ 取消异常：${trackId} - ${e.message}`)
+        }
+        
+        if (i < successTrackIds.length - 1) {
+          await sleep(500)
+        }
       }
     }
     

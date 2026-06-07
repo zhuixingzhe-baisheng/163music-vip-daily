@@ -596,6 +596,18 @@ async function runVipMusicTasks(cookie, playlistId, songCount, logs = [], fallba
       logs.push(`🎵 VIP 音乐任务：成功收藏 ${targetCount} 首`)
     }
     
+    // 记录收藏的歌曲详情（用于推送通知）
+    if (successTrackIds.length > 0) {
+      logs.push('')
+      logs.push('📋 收藏歌曲列表:')
+      songs.forEach((song, index) => {
+        if (successTrackIds.includes(song.id)) {
+          const songName = `${song.name} - ${song.artists || '未知歌手'}`
+          logs.push(`   ${index + 1}. ${songName}`)
+        }
+      })
+    }
+    
     // 2. 收藏完成后延时 5-10 秒
     const finalDelay = Math.floor(Math.random() * 6) + 5
     console.log(`\n  ⏱️  收藏完成，等待 ${finalDelay} 秒后取消收藏...`)

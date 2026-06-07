@@ -479,137 +479,121 @@ async function runVipMusicTasks(cookie, playlistId, songCount, logs = [], fallba
     // 获取所有歌曲 ID（不限制数量）
     const allTrackIds = allTracks.map(t => t.id)
     
+    // 收集所有未收藏的歌曲，直到满 songCount 首
+    let allUnlikedTracks = []
+    let checkedPlaylistIds = [currentPlaylistId]
+    
     // 检查已收藏的歌曲，过滤掉已收藏的
     console.log('  检查歌曲收藏状态...')
-    let unlikedTracks = []
     try {
       const likedResult = await likelist({ uid: userId, cookie })
       if (likedResult.body.code === 200 && likedResult.body.ids) {
         const likedIds = new Set(likedResult.body.ids)
-        unlikedTracks = allTracks.filter(t => !likedIds.has(t.id))
+        allUnlikedTracks = allTracks.filter(t => !likedIds.has(t.id))
       } else {
-        unlikedTracks = allTracks
+        allUnlikedTracks = allTracks
       }
     } catch (e) {
       console.log(`  ⚠️ 获取收藏列表失败，处理所有歌曲：${e.message}`)
-      unlikedTracks = allTracks
+      allUnlikedTracks = allTracks
     }
     
-    // 从未收藏的歌曲中挑选 songCount 首
-    let songs = unlikedTracks.slice(0, songCount)
+    // 如果未收藏歌曲不足 songCount，继续从备用歌单收集
+    const targetCount = songCount
+    let songs = allUnlikedTracks.slice(0, targetCount)
     
-    // 如果当前歌单所有歌曲都已收藏，继续尝试其他备用歌单
-    if (songs.length === 0) {
-      const remainingFallbacks = fallbackPlaylistIds.slice(usedFallbackIndex + 1)
+    if (allUnlikedTracks.length < targetCount && fallbackPlaylistIds.length > 0) {
+      console.log(`  ⚠️ 主歌单未收藏歌曲不足 ${targetCount} 首 (${allUnlikedTracks.length}首)，继续从备用歌单收集...`)
       
-      if (remainingFallbacks.length > 0) {
-        console.log(`  ⚠️ 歌单 ${currentPlaylistId} 的所有歌曲都已收藏，继续尝试其他备用歌单...`)
+      for (const fallbackId of fallbackPlaylistIds) {
+        if (songs.length >= targetCount) break
+        if (checkedPlaylistIds.includes(fallbackId)) continue
         
-        for (const fallbackId of remainingFallbacks) {
-          console.log(`  尝试备用歌单 ${fallbackId}...`)
-          playlist = await playlist_detail({ id: fallbackId })
+        console.log(`  尝试备用歌单 ${fallbackId}...`)
+        const fallbackPlaylist = await playlist_detail({ id: fallbackId })
+        
+        if (fallbackPlaylist.body.code === 200 && fallbackPlaylist.body.playlist && fallbackPlaylist.body.playlist.tracks) {
+          checkedPlaylistIds.push(fallbackId)
+          const fallbackTracks = fallbackPlaylist.body.playlist.tracks
+          const fallbackAllTrackIds = fallbackTracks.map(t => t.id)
           
-          if (playlist.body.code === 200 && playlist.body.playlist && playlist.body.playlist.tracks) {
-            const fallbackAllTracks = playlist.body.playlist.tracks
-            const fallbackAllTrackIds = fallbackAllTracks.map(t => t.id)
-            
-            try {
-              const likedResult = await likelist({ uid: userId, cookie })
-              if (likedResult.body.code === 200 && likedResult.body.ids) {
-                const likedIds = new Set(likedResult.body.ids)
-                const fallbackUnliked = fallbackAllTracks.filter(t => !likedIds.has(t.id))
-                const fallbackSongs = fallbackUnliked.slice(0, songCount)
-                
-                if (fallbackSongs.length > 0) {
-                  currentPlaylistId = fallbackId
-                  songs = fallbackSongs
-                  console.log(`  ✅ 备用歌单 ${fallbackId} 找到 ${songs.length} 首未收藏歌曲`)
-                  break
-                } else {
-                  console.log(`  ⊘ 备用歌单 ${fallbackId} 的所有歌曲都已收藏`)
-                }
-              }
-            } catch (e) {
-              console.log(`  ⚠️ 检查歌单 ${fallbackId} 收藏状态失败：${e.message}`)
+          try {
+            const likedResult = await likelist({ uid: userId, cookie })
+            if (likedResult.body.code === 200 && likedResult.body.ids) {
+              const likedIds = new Set(likedResult.body.ids)
+              const fallbackUnliked = fallbackTracks.filter(t => !likedIds.has(t.id))
+              songs = [...songs, ...fallbackUnliked].slice(0, targetCount)
+              currentPlaylistId = fallbackId
+              console.log(`  ✅ 备用歌单 ${fallbackId} 找到 ${fallbackUnliked.length} 首未收藏歌曲，累计 ${songs.length} 首`)
             }
-          } else {
-            console.log(`  ⚠️ 备用歌单 ${fallbackId} 获取失败`)
+          } catch (e) {
+            console.log(`  ⚠️ 检查歌单 ${fallbackId} 收藏状态失败：${e.message}`)
           }
+        } else {
+          console.log(`  ⚠️ 备用歌单 ${fallbackId} 获取失败`)
         }
       }
     }
     
-    // 如果所有歌单都已收藏，跳过任务
-    if (songs.length === 0) {
-      console.log(`  ⊘ 所有歌单的歌曲都已收藏，跳过本次任务`)
-      logs.push('🎵 VIP 音乐任务：所有歌单的歌曲都已收藏，跳过')
-      return
-    }
-    
-    console.log(`🎵 会员雷达歌单 (${currentPlaylistId})，未收藏歌曲 ${unlikedTracks.length} 首，本次挑选 ${songs.length} 首`)
+    console.log(`🎵 会员雷达歌单 (${currentPlaylistId})，共收集 ${songs.length} 首未收藏歌曲`)
     console.log()
     
+    // 如果收集到的歌曲不足 targetCount，继续尝试获取
+    if (songs.length < targetCount) {
+      console.log(`  ⚠️ 所有歌单加起来也只有 ${songs.length} 首未收藏歌曲，将全部收藏`)
+    }
+    
     let successCount = 0
-    
-    // 逐首执行：收藏→检查→补足→取消收藏
-    const targetCount = songCount
     const successTrackIds = []
-    let collectionIndex = 0
     
-    // 循环收藏直到满 targetCount 首
-    while (successTrackIds.length < targetCount && collectionIndex < allTrackIds.length) {
-      const batch = unlikedTracks.slice(collectionIndex, collectionIndex + songCount)
-      if (batch.length === 0) break
+    // 逐首执行收藏
+    for (let i = 0; i < songs.length; i++) {
+      if (successTrackIds.length >= targetCount) break
       
-      for (let i = 0; i < batch.length; i++) {
-        if (successTrackIds.length >= targetCount) break
-        
-        const song = batch[i]
-        const playTime = Math.floor(song.dt / 1000)
-        const sessionId = `SESSION_${Date.now()}_${song.id}`
-        
-        console.log(`  [待收藏 ${successTrackIds.length + 1}/${targetCount}] ${song.name} - ${song.artists}`)
-        console.log('  ' + '-'.repeat(40))
-        
-        // 1. 收藏歌曲
-        console.log('  [1] 收藏歌曲...')
-        try {
-          const likeResult = await song_like({ cookie, id: song.id, like: true })
-          if (likeResult.body.code === 200 || likeResult.body.code === 201) {
-            console.log(`    ✓ 收藏成功`)
-            successTrackIds.push(song.id)
-          } else if (likeResult.body.code === 502) {
-            console.log(`    ⊘ 歌曲已收藏，跳过`)
-          } else {
-            console.log(`    ✗ 收藏失败：${likeResult.body.message || '未知错误'}`)
-          }
-        } catch (e) {
-          console.log(`    ✗ 收藏失败：${e.message}`)
+      const song = songs[i]
+      const playTime = Math.floor(song.dt / 1000)
+      
+      console.log(`  [待收藏 ${successTrackIds.length + 1}/${targetCount}] ${song.name} - ${song.artists}`)
+      console.log('  ' + '-'.repeat(40))
+      
+      // 1. 收藏歌曲
+      console.log('  [1] 收藏歌曲...')
+      try {
+        const likeResult = await song_like({ cookie, id: song.id, like: true })
+        if (likeResult.body.code === 200 || likeResult.body.code === 201) {
+          console.log(`    ✓ 收藏成功`)
+          successTrackIds.push(song.id)
+        } else if (likeResult.body.code === 502) {
+          console.log(`    ⊘ 歌曲已收藏，跳过`)
+        } else if (likeResult.body.code === 401) {
+          console.log(`    ✗ 下架歌曲无法收藏：${likeResult.body.message}`)
+        } else {
+          console.log(`    ✗ 收藏失败：${likeResult.body.message || '未知错误'}`)
         }
-        
-        collectionIndex++
-        
-        // 如果不启用听歌记录，在歌曲之间添加 10-15 秒随机延时
-        if (!enableScrobble && successTrackIds.length < targetCount && collectionIndex < unlikedTracks.length) {
-          const delaySeconds = Math.floor(Math.random() * 6) + 10
-          console.log(`    ⏱️  等待 ${delaySeconds} 秒后处理下一首...`)
-          await sleep(delaySeconds * 1000)
-        }
+      } catch (e) {
+        console.log(`    ✗ 收藏失败：${e.message}`)
       }
       
-      // 如果当前批次已处理完但还没满 targetCount，继续检查收藏状态获取新的未收藏列表
-      if (successTrackIds.length < targetCount && collectionIndex < allTrackIds.length) {
-        console.log(`  ⏳ 继续检查剩余歌曲...`)
-        try {
-          const likedResult = await likelist({ uid: userId, cookie })
-          if (likedResult.body.code === 200 && likedResult.body.ids) {
-            const likedIds = new Set(likedResult.body.ids)
-            unlikedTracks = allTracks.filter(t => !likedIds.has(t.id) && !successTrackIds.includes(t.id))
-          }
-        } catch (e) {
-          console.log(`  ⚠️ 刷新收藏状态失败：${e.message}`)
-        }
+      // 如果不启用听歌记录，在歌曲之间添加 10-15 秒随机延时
+      if (!enableScrobble && successTrackIds.length < targetCount && i < songs.length - 1) {
+        const delaySeconds = Math.floor(Math.random() * 6) + 10
+        console.log(`    ⏱️  等待 ${delaySeconds} 秒后处理下一首...`)
+        await sleep(delaySeconds * 1000)
       }
+    }
+    
+    // 检查最终收藏结果
+    if (successTrackIds.length < targetCount) {
+      if (successTrackIds.length === 0) {
+        console.log(`⚠️ 警告：没有成功收藏任何歌曲`)
+        logs.push(`🎵 VIP 音乐任务：无成功收藏 (下架/已收藏)`)
+      } else {
+        console.log(`⚠️ 警告：只成功收藏 ${successTrackIds.length}/${targetCount} 首歌曲`)
+        logs.push(`🎵 VIP 音乐任务：成功收藏 ${successTrackIds.length}/${targetCount} 首`)
+      }
+    } else {
+      console.log(`✅ 成功收藏 ${targetCount} 首歌曲`)
+      logs.push(`🎵 VIP 音乐任务：成功收藏 ${targetCount} 首`)
     }
     
     // 2. 收藏完成后延时 5-10 秒

@@ -32,6 +32,7 @@ const {
   share_resource,
   playlist_detail,
   song_like,
+  like,
   scrobble,
   likelist
 } = require('@neteasecloudmusicapienhanced/api')
@@ -646,63 +647,27 @@ async function runVipMusicTasks(cookie, playlistId, songCount, logs = [], fallba
     console.log(`\n  ⏱️  收藏完成，等待 ${finalDelay} 秒后取消收藏...`)
     await sleep(finalDelay * 1000)
     
-    // 3. 获取用户红心歌单 ID
-    console.log(`\n  📋  获取红心歌单 ID...`)
-    let likedPlaylistId = ''
-    try {
-      const userProfile = await vip_info({ cookie })
-      // 红心歌单 ID 直接从 API 响应获取
-      if (userProfile.body?.data?.likedPlaylistId) {
-        likedPlaylistId = userProfile.body.data.likedPlaylistId.toString()
-        console.log(`  ✅ 红心歌单 ID: ${likedPlaylistId}`)
-      } else if (userProfile.body?.data?.userId) {
-        // 备用：使用用户 ID 作为红心歌单 ID
-        likedPlaylistId = userProfile.body.data.userId.toString()
-        console.log(`  ✅ 红心歌单 ID (使用 userId): ${likedPlaylistId}`)
-      } else {
-        // 尝试从 user_account 获取
-        const userAccount = await API.user_account({ cookie })
-        if (userAccount.body?.account?.id) {
-          likedPlaylistId = userAccount.body.account.id.toString()
-          console.log(`  ✅ 红心歌单 ID (使用 accountId): ${likedPlaylistId}`)
-        }
-      }
-    } catch (e) {
-      console.log(`  ⚠️  获取红心歌单 ID 失败：${e.message}`)
-    }
+    // 2. 取消收藏 (使用 like API)
+    console.log(`\n  🗑️  开始取消收藏...`)
     
-    // 4. 使用 playlist_tracks API 取消收藏
-    console.log(`\n  🗑️  开始取消收藏（使用红心歌单 API）...`)
-    const { playlist_tracks } = API
-    
-    if (!likedPlaylistId) {
-      console.log(`  ❌ 无法获取红心歌单 ID，跳过取消收藏`)
-    } else {
-      for (let i = 0; i < successTrackIds.length; i++) {
-        const trackId = successTrackIds[i]
-        try {
-          // 使用 playlist_tracks API 从红心歌单删除
-          const unlikeResult = await playlist_tracks({
-            cookie,
-            pid: likedPlaylistId,
-            tracks: trackId.toString(),
-            op: 'del'
-          })
-          
-          console.log(`    取消收藏响应：`, JSON.stringify(unlikeResult.body || unlikeResult))
-          
-          if (unlikeResult.body?.code === 200 || unlikeResult.status === 200) {
-            console.log(`    ✓ 取消成功：${trackId}`)
-          } else {
-            console.log(`    ✗ 取消失败：${trackId}`)
-          }
-        } catch (e) {
-          console.log(`    ✗ 取消异常：${trackId} - ${e.message}`)
-        }
+    for (let i = 0; i < successTrackIds.length; i++) {
+      const trackId = successTrackIds[i]
+      try {
+        const unlikeResult = await like({ cookie, id: trackId, like: 'false' })
         
-        if (i < successTrackIds.length - 1) {
-          await sleep(500)
+        console.log(`    取消收藏响应：`, JSON.stringify(unlikeResult.body))
+        
+        if (unlikeResult.body.code === 200) {
+          console.log(`    ✓ 取消成功：${trackId}`)
+        } else {
+          console.log(`    ✗ 取消失败：${trackId} - ${unlikeResult.body.message || '未知错误'}`)
         }
+      } catch (e) {
+        console.log(`    ✗ 取消异常：${trackId} - ${e.message}`)
+      }
+      
+      if (i < successTrackIds.length - 1) {
+        await sleep(500)
       }
     }
     

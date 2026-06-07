@@ -278,8 +278,7 @@ async function executeUserTasks(user, config, options = {}) {
         for (let i = 0; i < tracksToLike.length; i++) {
           const trackId = tracksToLike[i]
           try {
-            const doLike = getLike || song_like
-            const likeRes = await doLike({ like: true, id: trackId, cookie })
+            const likeRes = await song_like({ cookie, id: trackId, like: true })
             if (likeRes.body.code === 200 || likeRes.body.code === 201) {
               collectedCount++
               logger.log(`  ✅ 收藏歌曲：${trackId}`)

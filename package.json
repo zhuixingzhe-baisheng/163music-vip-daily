@@ -6,10 +6,7 @@
   "scripts": {
     "start": "node auto_tasks_enhanced.js",
     "dev": "node --watch auto_tasks_enhanced.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "frontend": "cd frontend && npm run dev",
-    "api": "node api-server.js",
-    "dev:all": "concurrently \"npm run api\" \"npm run frontend\""
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
     "netease",
@@ -24,9 +21,6 @@
   "dependencies": {
     "@neteasecloudmusicapienhanced/api": "^4.34.3",
     "node-cron": "^3.0.3"
-  },
-  "devDependencies": {
-    "concurrently": "^8.2.2"
   },
   "engines": {
     "node": ">=18.0.0"

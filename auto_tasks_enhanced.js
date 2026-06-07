@@ -227,6 +227,17 @@ async function main() {
         const vipStatus = hasVip ? '已开通' : '未开通'
         console.log(`[${user.nickname}] VIP 状态：${vipStatus}`)
         runLogs.push(`VIP 状态：${vipStatus}`)
+      } else if (vipResult.body.code === 301) {
+        const errorMsg = `用户未登录 (Cookie 已过期)`
+        console.error(`[${user.nickname}] ✗ ${errorMsg}`)
+        runLogs.push(`❌ ${errorMsg}`)
+        runLogs.push(`提示：请更新 config.json 或环境变量中的 MUSIC_U cookie`)
+        throw new Error(errorMsg)
+      } else {
+        const errorMsg = `VIP 状态检查失败：${vipResult.body.message || vipResult.body.code}`
+        console.error(`[${user.nickname}] ✗ ${errorMsg}`)
+        runLogs.push(`❌ ${errorMsg}`)
+        throw new Error(errorMsg)
       }
       
       // 云贝签到（安卓端）
@@ -395,9 +406,31 @@ async function main() {
       runLogs.push(`✅ 任务完成`)
       
     } catch (error) {
-      const errorMsg = error ? (error.message || String(error)) : '未知错误'
-      console.error(`[${user.nickname}] ✗ 执行失败:`, errorMsg)
+      let errorMsg = '未知错误'
+      if (error) {
+        if (typeof error === 'string') {
+          errorMsg = error
+        } else if (error.message) {
+          errorMsg = error.message
+        } else if (error.body?.message) {
+          errorMsg = `${error.body.message} (${error.body.code || 'API 错误'})`
+        } else {
+          try {
+            errorMsg = JSON.stringify(error)
+          } catch {
+            errorMsg = String(error)
+          }
+        }
+      }
+      console.error(`[${user.nickname}] ✗ 执行失败：${errorMsg}`)
       runLogs.push(`❌ 执行失败：${errorMsg}`)
+      
+      // 如果是 Cookie 过期，提示更新
+      if (errorMsg.includes('未登录') || errorMsg.includes('301')) {
+        console.error(`\n提示：Cookie 已过期，请更新 config.json 中的 MUSIC_U cookie`)
+        console.error(`或者设置环境变量：export NETEASE_MUSIC_U="MUSIC_U=你的新 cookie"`)
+        runLogs.push(`\n💡 提示：Cookie 已过期，请重新获取并更新配置`)
+      }
     }
     
     console.log('-'.repeat(60))

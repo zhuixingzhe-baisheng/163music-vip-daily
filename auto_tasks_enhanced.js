@@ -623,6 +623,24 @@ async function runVipMusicTasks(cookie, playlistId, songCount, logs = [], fallba
         console.log(`    ✗ 收藏失败：${e.message}`)
       }
       
+      // 启用听歌记录时，上传听歌数据
+      if (enableScrobble && successTrackIds.includes(song.id)) {
+        console.log(`  [2] 上传听歌记录...`)
+        try {
+          const scrobbleResult = await scrobble({
+            cookie,
+            id: song.id,
+            sourceid: currentPlaylistId,
+            time: playTime,
+          })
+          if (scrobbleResult.body.code === 200) {
+            console.log(`    ✓ 听歌记录已上传 (${(playTime / 60).toFixed(2)}分钟)`)
+          }
+        } catch (e) {
+          console.log(`    ✗ 听歌记录上传失败：${e.message}`)
+        }
+      }
+      
       // 如果不启用听歌记录，在歌曲之间添加 10-15 秒随机延时
       if (!enableScrobble && successTrackIds.length < targetCount && i < songs.length - 1) {
         const delaySeconds = Math.floor(Math.random() * 6) + 10
@@ -641,8 +659,9 @@ async function runVipMusicTasks(cookie, playlistId, songCount, logs = [], fallba
         logs.push(`🎵 VIP 音乐任务：成功收藏 ${successTrackIds.length}/${targetCount} 首`)
       }
     } else {
-      console.log(`✅ 成功收藏 ${targetCount} 首歌曲`)
-      logs.push(`🎵 VIP 音乐任务：成功收藏 ${targetCount} 首`)
+      const scrobbleMsg = enableScrobble ? ' (含听歌记录)' : ''
+      console.log(`✅ 成功收藏 ${targetCount} 首歌曲${scrobbleMsg}`)
+      logs.push(`🎵 VIP 音乐任务：成功收藏 ${targetCount} 首${scrobbleMsg}`)
     }
     
     // 记录收藏的歌曲详情（用于推送通知）

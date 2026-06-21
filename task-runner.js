@@ -26,6 +26,7 @@ const getUserStatus = API.user_status || API.server?.user_status || null
 const getDailySignin = API.daily_signin || API.server?.daily_signin || null
 const getVipTaskSignin = API.vip_task_signin || API.server?.vip_task_signin || null
 const getVipGrowthpoint = API.vip_growthpoint_get || API.server?.vip_growthpoint_get || null
+const getVipGrowthpointAll = API.vip_growthpoint_getall || API.server?.vip_growthpoint_getall || null
 const getPlaylistDetail = API.playlist_detail || API.server?.playlist_detail || null
 const getLike = API.song_like || API.like || API.server?.like || null
 const getScrobble = API.scrobble || API.server?.scrobble || null
@@ -192,20 +193,32 @@ async function executeUserTasks(user, config, options = {}) {
     }
 
     // 5. VIP 成长值领取
-    if (config.enableVipGrowthpoint !== false && getVipGrowthpoint) {
+    if (config.enableVipGrowthpoint !== false) {
       try {
-        const growthRes = await getVipGrowthpoint({ cookie })
-        const growthData = growthRes.body
-        if (growthData.code === 200) {
-          const growthpoint = growthData.data?.vip_growthpoint || 0
-          const message = `✅ VIP 成长值领取：获得 ${growthpoint} 成长值`
-          logger.log(message); result.details.push(message)
-          if (onProgress) onProgress({ type: 'task', message })
-        } else if (growthData.code === -2 || growthData.message?.includes('暂无')) {
-          const message = 'ℹ️ VIP 成长值领取：暂无可领取的成长值'
-          logger.log(message); result.details.push(message)
-          if (onProgress) onProgress({ type: 'info', message })
-        } else { throw new Error(growthData.message || '领取成长值失败') }
+        // 优先使用一键领取 (xeapi + getall)
+        if (getVipGrowthpointAll) {
+          const growthAllRes = await getVipGrowthpointAll({ cookie })
+          if (growthAllRes.body.code === 200 && growthAllRes.body.data?.result) {
+            const message = '✅ VIP 成长值：一键领取成功'
+            logger.log(message); result.details.push(message)
+            if (onProgress) onProgress({ type: 'task', message })
+          } else {
+            throw new Error(growthAllRes.body.message || '一键领取失败')
+          }
+        } else if (getVipGrowthpoint) {
+          const growthRes = await getVipGrowthpoint({ cookie })
+          const growthData = growthRes.body
+          if (growthData.code === 200) {
+            const growthpoint = growthData.data?.vip_growthpoint || 0
+            const message = `✅ VIP 成长值领取：获得 ${growthpoint} 成长值`
+            logger.log(message); result.details.push(message)
+            if (onProgress) onProgress({ type: 'task', message })
+          } else if (growthData.code === -2 || growthData.message?.includes('暂无')) {
+            const message = 'ℹ️ VIP 成长值领取：暂无可领取的成长值'
+            logger.log(message); result.details.push(message)
+            if (onProgress) onProgress({ type: 'info', message })
+          } else { throw new Error(growthData.message || '领取成长值失败') }
+        }
       } catch (e) {
         const message = `❌ VIP 成长值领取：${e.message}`
         logger.error(message); result.details.push(message)

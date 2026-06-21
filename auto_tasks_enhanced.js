@@ -28,6 +28,7 @@ const {
   yunbei_sign,
   vip_tasks,
   vip_growthpoint_get,
+  vip_growthpoint_getall,
   event_del,
   share_resource,
   playlist_detail,
@@ -364,36 +365,50 @@ async function main() {
       if (config.enableVipGrowthpoint) {
         console.log(`[${user.nickname}] 领取 VIP 成长值...`)
         
-        const vipTasksResult = await vip_tasks({ cookie: user.cookie })
-        if (vipTasksResult.body.code === 200) {
-          const needTaskIds = []
-          for (const group of vipTasksResult.body.data.taskList) {
-            for (const task of group.taskItems) {
-              if (task.currentProgress >= task.targetWorth && task.needReceive) {
-                needTaskIds.push(task.taskId)
+        // 优先使用一键领取 (xeapi + getall)
+        if (vip_growthpoint_getall) {
+          console.log(`[${user.nickname}] 使用一键领取 (getall)...`)
+          const growthAllResult = await vip_growthpoint_getall({ cookie: user.cookie })
+          if (growthAllResult.body.code === 200 && growthAllResult.body.data?.result) {
+            console.log(`[${user.nickname}] ✓ 一键领取成长值成功`)
+            runLogs.push(`💰 一键领取成长值：成功`)
+          } else {
+            console.log(`[${user.nickname}] ✗ 一键领取成长值失败:`, growthAllResult.body.message || growthAllResult.body.code)
+            runLogs.push(`💰 一键领取成长值：失败`)
+          }
+        } else {
+          // 降级：使用旧版 weapi 逐任务领取
+          const vipTasksResult = await vip_tasks({ cookie: user.cookie })
+          if (vipTasksResult.body.code === 200) {
+            const needTaskIds = []
+            for (const group of vipTasksResult.body.data.taskList) {
+              for (const task of group.taskItems) {
+                if (task.currentProgress >= task.targetWorth && task.needReceive) {
+                  needTaskIds.push(task.taskId)
+                }
               }
             }
-          }
-          
-          if (needTaskIds.length > 0) {
-            console.log(`[${user.nickname}] 发现 ${needTaskIds.length} 个可领取任务`)
             
-            const growthResult = await vip_growthpoint_get({
-              cookie: user.cookie,
-              ids: needTaskIds.join(',')
-            })
-            
-            if (growthResult.body.code === 200) {
-              const total = growthResult.body.data.total || 0
-              console.log(`[${user.nickname}] ✓ 领取成长值成功，总计 +${total}`)
-              runLogs.push(`💰 领取成长值：+${total}`)
+            if (needTaskIds.length > 0) {
+              console.log(`[${user.nickname}] 发现 ${needTaskIds.length} 个可领取任务`)
+              
+              const growthResult = await vip_growthpoint_get({
+                cookie: user.cookie,
+                ids: needTaskIds.join(',')
+              })
+              
+              if (growthResult.body.code === 200) {
+                const total = growthResult.body.data.total || 0
+                console.log(`[${user.nickname}] ✓ 领取成长值成功，总计 +${total}`)
+                runLogs.push(`💰 领取成长值：+${total}`)
+              } else {
+                console.log(`[${user.nickname}] ✗ 领取成长值失败:`, growthResult.body.message || growthResult.body.code)
+                runLogs.push(`💰 领取成长值：失败`)
+              }
             } else {
-              console.log(`[${user.nickname}] ✗ 领取成长值失败:`, growthResult.body.message || growthResult.body.code)
-              runLogs.push(`💰 领取成长值：失败`)
+              console.log(`[${user.nickname}] 暂无可领取的成长值`)
+              runLogs.push(`💰 领取成长值：无可领取`)
             }
-          } else {
-            console.log(`[${user.nickname}] 暂无可领取的成长值`)
-            runLogs.push(`💰 领取成长值：无可领取`)
           }
         }
       }

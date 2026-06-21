@@ -303,19 +303,18 @@ async function executeUserTasks(user, config, options = {}) {
                 await sleep(delaySeconds * 1000)
               }
 
-              // 启用听歌记录时，执行完整流程
+              // 启用听歌记录时，调用 scrobble 模块（内部已含 startplay + play）
               if (enableScrobble) {
-                logger.log(`  🎧 准备上传听歌状态...`)
+                logger.log(`  🎧 上传听歌记录...`)
                 const trackInfo = playlistData.playlist.tracks.find(t => t.id === trackId)
                 if (trackInfo) {
                   const playTime = Math.floor(trackInfo.dt / 1000)
-                  const sessionId = `SESSION_${Date.now()}_${trackId}`
-                  await playStateSubmit(cookie, trackId, 'song', 0, 'list_loop', sessionId)
-                  await sleep(1000)
-                  await sleep(Math.min(playTime * 1000, 60000))
-                  await playStateSubmit(cookie, trackId, 'song', playTime, 'list_loop', sessionId)
-                  await sleep(1000)
-                  const scrobbleResult = await (getScrobble || scrobble)({ cookie, id: trackId, sourceid: currentPlaylistId, time: playTime })
+                  const scrobbleResult = await (getScrobble || scrobble)({
+                    cookie,
+                    id: trackId,
+                    sourceid: currentPlaylistId,
+                    time: playTime,
+                  })
                   if (scrobbleResult.body.code === 200) {
                     logger.log(`  ✅ 听歌记录已上传 (${(playTime / 60).toFixed(2)}分钟)`)
                   }
@@ -421,7 +420,7 @@ async function getVipTaskList(cookie, userId = '', logger = console) {
 }
 
 module.exports = {
-  sleep, getTodayString, playStateSubmit, getVipTasksV1,
+  sleep, getTodayString, getVipTasksV1,
   validateMusicU, validateServerSendKey, validatePushplusToken,
   executeUserTasks, getVipTaskList, checkIsLiked, getUnlikedTracks, getUserId
 }

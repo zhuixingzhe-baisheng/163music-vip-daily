@@ -469,7 +469,7 @@ async function main() {
 }
 
 // 使用 task-runner 中的公共函数
-const { sleep, playStateSubmit } = taskRunner
+const { sleep } = taskRunner
 
 // VIP 音乐任务函数
 async function runVipMusicTasks(cookie, playlistId, songCount, logs = [], fallbackPlaylistIds = [7785066739, 5453912201], enableScrobble = false) {

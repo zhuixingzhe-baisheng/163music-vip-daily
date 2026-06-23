@@ -16,6 +16,7 @@ const {
   playlist_detail,
   song_like,
   scrobble,
+  scrobble_v1,
   share_resource,
   event_del,
   event,
@@ -30,6 +31,8 @@ const getVipGrowthpointAll = API.vip_growthpoint_getall || API.server?.vip_growt
 const getPlaylistDetail = API.playlist_detail || API.server?.playlist_detail || null
 const getLike = API.song_like || API.like || API.server?.like || null
 const getScrobble = API.scrobble || API.server?.scrobble || null
+const getScrobbleV1 = API.scrobble_v1 || API.server?.scrobble_v1 || null
+const getVipTasksV1Module = API.vip_tasks_v1 || API.server?.vip_tasks_v1 || null
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
@@ -55,6 +58,12 @@ async function playStateSubmit(cookie, resourceId, resourceType = 'song', progre
 }
 
 async function getVipTasksV1(cookie, userId = '') {
+  const module = getVipTasksV1Module
+  if (module) {
+    const result = await module({ cookie, id: userId })
+    return result.body
+  }
+
   const data = userId ? { userId } : {}
   const response = await fetch('https://interface.music.163.com/api/middle/vip/mission/user/progress/list', {
     method: 'POST',
@@ -305,18 +314,27 @@ async function executeUserTasks(user, config, options = {}) {
 
               // 启用听歌记录时，调用 scrobble 模块（内部已含 startplay + play）
               if (enableScrobble) {
-                logger.log(`  🎧 上传听歌记录...`)
+                logger.log(`  🎧 上传听歌记录 (NCBL)...`)
                 const trackInfo = playlistData.playlist.tracks.find(t => t.id === trackId)
                 if (trackInfo) {
                   const playTime = Math.floor(trackInfo.dt / 1000)
-                  const scrobbleResult = await (getScrobble || scrobble)({
-                    cookie,
-                    id: trackId,
-                    sourceid: currentPlaylistId,
-                    time: playTime,
-                  })
-                  if (scrobbleResult.body.code === 200) {
-                    logger.log(`  ✅ 听歌记录已上传 (${(playTime / 60).toFixed(2)}分钟)`)
+                  const scrobbleFn = getScrobbleV1 || getScrobble
+                  if (scrobbleFn) {
+                    const scrobbleResult = await scrobbleFn({
+                      cookie,
+                      id: trackId,
+                      sourceid: currentPlaylistId,
+                      time: playTime,
+                      total: playTime,
+                      name: trackInfo.name || '',
+                      artist: (trackInfo.ar || []).map(a => a.name).join('/'),
+                    })
+                    const body = scrobbleResult.body
+                    if (body.code === 200) {
+                      logger.log(`  ✅ 听歌记录已上传 (${(playTime / 60).toFixed(2)}分钟)`)
+                    } else {
+                      logger.log(`  ⊘ 听歌记录: ${body.msg || body.message || '未知状态'}`)
+                    }
                   }
                 }
               }

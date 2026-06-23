@@ -29,12 +29,14 @@ const {
   vip_tasks,
   vip_growthpoint_get,
   vip_growthpoint_getall,
+  vip_tasks_v1,
   event_del,
   share_resource,
   playlist_detail,
   song_like,
   like,
   scrobble,
+  scrobble_v1,
   likelist
 } = require('@neteasecloudmusicapienhanced/api')
 
@@ -69,7 +71,7 @@ function loadConfigFromEnv() {
     enableVipMusicTasks: true,
     vipMusicPlaylistId: 8402996200,
     vipMusicSongCount: 4,
-    enableVipMusicScrobble: false,
+    enableVipMusicScrobble: true,
     enableAutoPost: true,
     deletePreviousPost: true,
     postPlaylistId: 8402996200,
@@ -102,7 +104,7 @@ if (!config) {
       vipMusicPlaylistId: configData.vipMusicPlaylistId || 8402996200,
       vipMusicFallbackPlaylistIds: configData.vipMusicFallbackPlaylistIds || [7785066739, 5453912201],
       vipMusicSongCount: configData.vipMusicSongCount || 4,
-      enableVipMusicScrobble: configData.enableVipMusicScrobble !== undefined ? configData.enableVipMusicScrobble : false,
+      enableVipMusicScrobble: configData.enableVipMusicScrobble !== undefined ? configData.enableVipMusicScrobble : true,
       enableAutoPost: configData.enableAutoPost !== false,
       deletePreviousPost: configData.deletePreviousPost !== false,
       postPlaylistId: configData.postPlaylistId || 8402996200,
@@ -337,10 +339,11 @@ async function main() {
       // 获取 VIP 任务列表（新版 /vip/task/v1）
       if (config.showVipTaskList) {
         console.log(`[${user.nickname}] 获取 VIP 任务列表 (/vip/task/v1)...`)
-        const vipTasksV1Result = await taskRunner.getVipTasksV1(user.cookie, user.id || '')
-        if (vipTasksV1Result.code === 200 && vipTasksV1Result.data) {
+        const vipTasksV1Result = await vip_tasks_v1({ cookie: user.cookie, id: user.id || '' })
+        const tasksBody = vipTasksV1Result.body
+        if (tasksBody.code === 200 && tasksBody.data) {
           console.log(`[${user.nickname}] = VIP 任务列表 =`)
-          const taskList = Array.isArray(vipTasksV1Result.data) ? vipTasksV1Result.data : (vipTasksV1Result.data.missionList || [])
+          const taskList = Array.isArray(tasksBody.data) ? tasksBody.data : (tasksBody.data.missionList || [])
           if (taskList.length > 0) {
             for (const task of taskList) {
               const name = task.name || task.title || task.missionTitle || task.basicMissionDTO?.name || '未知任务'
@@ -356,7 +359,7 @@ async function main() {
             console.log(`[${user.nickname}]   暂无任务数据`)
           }
         } else {
-          console.log(`[${user.nickname}] 获取 VIP 任务失败：`, vipTasksV1Result.message || vipTasksV1Result.code)
+          console.log(`[${user.nickname}] 获取 VIP 任务失败：`, tasksBody.message || tasksBody.code)
         }
       }
       runLogs.push('')
@@ -602,7 +605,7 @@ async function runVipMusicTasks(cookie, playlistId, songCount, logs = [], fallba
       const song = songs[i]
       const playTime = Math.floor(song.dt / 1000)
       
-      console.log(`  [待收藏 ${successTrackIds.length + 1}/${targetCount}] ${song.name} - ${song.artists}`)
+      console.log(`  [待收藏 ${successTrackIds.length + 1}/${targetCount}] ${song.name} - ${(song.ar || []).map(a => a.name).join('/')}`)
       console.log('  ' + '-'.repeat(40))
       
       // 1. 收藏歌曲
@@ -625,19 +628,25 @@ async function runVipMusicTasks(cookie, playlistId, songCount, logs = [], fallba
       
       // 启用听歌记录时，上传听歌数据
       if (enableScrobble && successTrackIds.includes(song.id)) {
-        console.log(`  [2] 上传听歌记录...`)
+        console.log(`  [2] 上传听歌记录 (NCBL)...`)
         try {
-          const scrobbleResult = await scrobble({
+          const scrobbleV1Result = await scrobble_v1({
             cookie,
             id: song.id,
             sourceid: currentPlaylistId,
             time: playTime,
+            total: playTime,
+            name: song.name,
+            artist: (song.ar || []).map(a => a.name).join('/'),
           })
-          if (scrobbleResult.body.code === 200) {
-            console.log(`    ✓ 听歌记录已上传 (${(playTime / 60).toFixed(2)}分钟)`)
+          const body = scrobbleV1Result.body
+          if (body.code === 200) {
+            console.log(`    ✓ 听歌记录已上报 (${(playTime / 60).toFixed(2)}分钟)`)
+          } else {
+            console.log(`    ⊘ 听歌记录上报: ${body.msg || body.message || '未知状态'}`)
           }
         } catch (e) {
-          console.log(`    ✗ 听歌记录上传失败：${e.message}`)
+          console.log(`    ✗ 听歌记录上报失败：${e.message}`)
         }
       }
       
@@ -670,7 +679,7 @@ async function runVipMusicTasks(cookie, playlistId, songCount, logs = [], fallba
       logs.push('📋 收藏歌曲列表:')
       songs.forEach((song, index) => {
         if (successTrackIds.includes(song.id)) {
-          const songName = `${song.name} - ${song.artists || '未知歌手'}`
+          const songName = `${song.name} - ${(song.ar || []).map(a => a.name).join('/') || '未知歌手'}`
           logs.push(`   ${index + 1}. ${songName}`)
         }
       })

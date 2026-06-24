@@ -314,27 +314,21 @@ async function executeUserTasks(user, config, options = {}) {
 
               // 启用听歌记录时，调用 scrobble 模块（内部已含 startplay + play）
               if (enableScrobble) {
-                logger.log(`  🎧 上传听歌记录 (NCBL)...`)
+                logger.log(`  🎧 上传听歌记录 (eapi/weblog)...`)
                 const trackInfo = playlistData.playlist.tracks.find(t => t.id === trackId)
                 if (trackInfo) {
                   const playTime = Math.floor(trackInfo.dt / 1000)
-                  const scrobbleFn = getScrobbleV1 || getScrobble
-                  if (scrobbleFn) {
-                    const scrobbleResult = await scrobbleFn({
-                      cookie,
-                      id: trackId,
-                      sourceid: currentPlaylistId,
-                      time: playTime,
-                      total: playTime,
-                      name: trackInfo.name || '',
-                      artist: (trackInfo.ar || []).map(a => a.name).join('/'),
-                    })
-                    const body = scrobbleResult.body
-                    if (body.code === 200) {
-                      logger.log(`  ✅ 听歌记录已上传 (${(playTime / 60).toFixed(2)}分钟)`)
-                    } else {
-                      logger.log(`  ⊘ 听歌记录: ${body.msg || body.message || '未知状态'}`)
-                    }
+                  const scrobbleResult = await (getScrobble || scrobble)({
+                    cookie,
+                    id: trackId,
+                    sourceid: currentPlaylistId,
+                    time: playTime,
+                  })
+                  const body = scrobbleResult.body
+                  if (body.code === 200) {
+                    logger.log(`  ✅ 听歌记录已上传 (${(playTime / 60).toFixed(2)}分钟)`)
+                  } else {
+                    logger.log(`  ⊘ 听歌记录: ${body.msg || body.message || '未知状态'}`)
                   }
                 }
               }

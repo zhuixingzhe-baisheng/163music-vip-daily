@@ -628,18 +628,15 @@ async function runVipMusicTasks(cookie, playlistId, songCount, logs = [], fallba
       
       // 启用听歌记录时，上传听歌数据
       if (enableScrobble && successTrackIds.includes(song.id)) {
-        console.log(`  [2] 上传听歌记录 (NCBL)...`)
+        console.log(`  [2] 上传听歌记录 (eapi/weblog)...`)
         try {
-          const scrobbleV1Result = await scrobble_v1({
+          const scrobbleResult = await scrobble({
             cookie,
             id: song.id,
             sourceid: currentPlaylistId,
             time: playTime,
-            total: playTime,
-            name: song.name,
-            artist: (song.ar || []).map(a => a.name).join('/'),
           })
-          const body = scrobbleV1Result.body
+          const body = scrobbleResult.body
           if (body.code === 200) {
             console.log(`    ✓ 听歌记录已上报 (${(playTime / 60).toFixed(2)}分钟)`)
           } else {

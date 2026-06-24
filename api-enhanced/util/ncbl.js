@@ -278,8 +278,17 @@ const buildPld = (ctx, song, source, played) => {
   }
 }
 
+// 基于 MUSIC_U 生成确定性设备 ID（保证同一账号每次上报使用同一设备指纹）
+const deviceIdFromToken = (token) => {
+  if (!token) return randomHex(32)
+  return crypto.createHash('md5').update(token).digest('hex')
+}
+
 // ---- Cookie → 设备/认证上下文 转换 ----
 const extractContext = (cookieObj) => {
+  const token = cookieObj.MUSIC_U || ''
+  const deviceId = cookieObj.deviceId || cookieObj.sDeviceId || deviceIdFromToken(token)
+
   return {
     app: {
       id: cookieObj.appid || '',
@@ -297,13 +306,13 @@ const extractContext = (cookieObj) => {
       packageId: '',
     },
     device: {
-      id: cookieObj.deviceId || cookieObj.sDeviceId || randomHex(32),
-      ti: cookieObj.NMTID || crypto.randomBytes(16).toString('hex'),
+      id: deviceId,
+      ti: cookieObj.NMTID || crypto.createHash('md5').update(token + 'ti').digest('hex').slice(0, 32),
       sign: cookieObj.clientSign || APP_CONF.clientSign || '',
       model: cookieObj.mode || cookieObj.mobilename || '',
-      nnid: cookieObj._ntes_nnid || ',',
-      nuid: cookieObj._ntes_nuid || `${Date.now()}@music.163.com`,
-      csrf: cookieObj.__csrf || crypto.randomBytes(16).toString('hex'),
+      nnid: cookieObj._ntes_nnid || `${Date.now()}.${Math.floor(Math.random() * 900000) + 100000}@music.163.com`,
+      nuid: cookieObj._ntes_nuid || `${Date.now()}${Math.floor(Math.random() * 900000) + 100000}@music.163.com`,
+      csrf: cookieObj.__csrf || crypto.createHash('md5').update(token + 'csrf').digest('hex'),
       systemType: cookieObj.os || 'pc',
       systemVersion:
         cookieObj.osver ||
@@ -311,7 +320,7 @@ const extractContext = (cookieObj) => {
     },
     auth: {
       id: cookieObj.uid || '',
-      token: cookieObj.MUSIC_U || '',
+      token: token,
       sessionId: cookieObj['JSESSIONID-WYYY'] || '',
       vipType: cookieObj.vipType || '',
     },

@@ -297,13 +297,13 @@ const extractContext = (cookieObj) => {
       packageId: '',
     },
     device: {
-      id: cookieObj.deviceId || cookieObj.sDeviceId || '',
-      ti: cookieObj.NMTID || '',
-      sign: cookieObj.clientSign || '',
+      id: cookieObj.deviceId || cookieObj.sDeviceId || randomHex(32),
+      ti: cookieObj.NMTID || crypto.randomBytes(16).toString('hex'),
+      sign: cookieObj.clientSign || APP_CONF.clientSign || '',
       model: cookieObj.mode || cookieObj.mobilename || '',
       nnid: cookieObj._ntes_nnid || ',',
-      nuid: cookieObj._ntes_nuid || '',
-      csrf: cookieObj.__csrf || '',
+      nuid: cookieObj._ntes_nuid || `${Date.now()}@music.163.com`,
+      csrf: cookieObj.__csrf || crypto.randomBytes(16).toString('hex'),
       systemType: cookieObj.os || 'pc',
       systemVersion:
         cookieObj.osver ||

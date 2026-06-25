@@ -86,6 +86,18 @@ function loadConfigFromEnv() {
 // 尝试从环境变量加载配置
 config = loadConfigFromEnv()
 
+// 如果环境变量加载成功，同时读取 config.json 以获取降级 Cookie
+let cookieFallbackFromFile = null
+if (config && fs.existsSync(configPath)) {
+  try {
+    const configData = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+    const fileUsers = configData.users || []
+    if (fileUsers.length > 0) {
+      cookieFallbackFromFile = fileUsers[0].cookie
+    }
+  } catch (_) {}
+}
+
 // 如果环境变量未配置，则从配置文件加载
 if (!config) {
   if (fs.existsSync(configPath)) {
@@ -225,18 +237,48 @@ async function main() {
     try {
       // 检查 VIP 状态
       console.log(`[${user.nickname}] 检查 VIP 状态...`)
-      const vipResult = await vip_info({ cookie: user.cookie })
-      if (vipResult.body.code === 200) {
+      let vipResult
+      try {
+        vipResult = await vip_info({ cookie: user.cookie })
+      } catch (e) {
+        vipResult = e
+      }
+      if (vipResult.status === 200 && vipResult.body && vipResult.body.code === 200) {
         const hasVip = vipResult.body.data.redVipLevel > 0
         const vipStatus = hasVip ? '已开通' : '未开通'
         console.log(`[${user.nickname}] VIP 状态：${vipStatus}`)
         runLogs.push(`VIP 状态：${vipStatus}`)
-      } else if (vipResult.body.code === 301) {
-        const errorMsg = `用户未登录 (Cookie 已过期)`
-        console.error(`[${user.nickname}] ✗ ${errorMsg}`)
-        runLogs.push(`❌ ${errorMsg}`)
-        runLogs.push(`提示：请更新 config.json 或环境变量中的 MUSIC_U cookie`)
-        throw new Error(errorMsg)
+      } else if (vipResult.status === 301 || (vipResult.body && vipResult.body.code === 301)) {
+        // 环境变量 Cookie 失效时，尝试降级到 config.json 中的 Cookie
+        if (cookieFallbackFromFile && cookieFallbackFromFile !== user.cookie) {
+          console.log(`[${user.nickname}] 环境变量 Cookie 失效，降级尝试 config.json...`)
+          user.cookie = cookieFallbackFromFile
+          let retryResult
+          try {
+            retryResult = await vip_info({ cookie: user.cookie })
+          } catch (e) {
+            retryResult = e
+          }
+          if (retryResult.status === 200 && retryResult.body && retryResult.body.code === 200) {
+            const hasVip = retryResult.body.data.redVipLevel > 0
+            const vipStatus = hasVip ? '已开通' : '未开通'
+            console.log(`[${user.nickname}] VIP 状态（config.json 降级）：${vipStatus}`)
+            runLogs.push(`VIP 状态：${vipStatus}`)
+            // 降级成功，继续后续任务
+          } else {
+            const errorMsg = `用户未登录 (Cookie 已过期，降级也失败)`
+            console.error(`[${user.nickname}] ✗ ${errorMsg}`)
+            runLogs.push(`❌ ${errorMsg}`)
+            runLogs.push(`提示：请更新 config.json 或环境变量中的 MUSIC_U cookie`)
+            throw new Error(errorMsg)
+          }
+        } else {
+          const errorMsg = `用户未登录 (Cookie 已过期)`
+          console.error(`[${user.nickname}] ✗ ${errorMsg}`)
+          runLogs.push(`❌ ${errorMsg}`)
+          runLogs.push(`提示：请更新 config.json 或环境变量中的 MUSIC_U cookie`)
+          throw new Error(errorMsg)
+        }
       } else {
         const errorMsg = `VIP 状态检查失败：${vipResult.body.message || vipResult.body.code}`
         console.error(`[${user.nickname}] ✗ ${errorMsg}`)

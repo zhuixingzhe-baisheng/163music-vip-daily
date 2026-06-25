@@ -3,50 +3,124 @@
 [![GitHub](https://img.shields.io/github/v/tag/zhuixingzhe-baisheng/163music-vip-daily?label=version)](https://github.com/zhuixingzhe-baisheng/163music-vip-daily)
 [![License](https://img.shields.io/github/license/zhuixingzhe-baisheng/163music-vip-daily)](LICENSE)
 
-> 📦 基于 API Enhanced 的网易云音乐自动任务工具  
-> 🎯 专注于每日自动任务：云贝签到、VIP 打卡、成长值领取、自动发动态
+基于 `@neteasecloudmusicapienhanced/api` SDK 的网易云音乐每日自动任务工具，无需浏览器，命令行一键运行。
 
 ---
 
-## ✨ 功能特性
+## 1. 功能介绍
 
-### 自动化任务
-| 功能 | 说明 |
+### 已实现的自动化任务
+
+| 任务 | 说明 |
 |------|------|
-| ☁️ 云贝签到 | 每日安卓端 + PC 端云贝签到 |
-| 🎫 VIP 乐签打卡 | VIP 用户每日打卡 |
-| 📈 VIP 成长值领取 | 自动领取已完成任务的成长值 |
-| 🎵 VIP 音乐任务 | 收藏歌曲 + 听歌记录 + 领取成长值 |
-| 📱 自动发布动态 | 每日自动分享歌曲到动态 |
+| 云贝签到（安卓端） | 每日安卓端云贝签到，获取云贝积分 |
+| 云贝签到（PC 端） | 每日 PC 端云贝签到，与安卓端独立累计 |
+| VIP 乐签打卡 | VIP 用户每日打卡，获取成长值 |
+| VIP 成长值领取 | 一键领取所有已完成 VIP 任务的成长值 |
+| VIP 音乐任务 | 自动从指定歌单收藏歌曲、取消收藏，刷 VIP 等级经验 |
+| 听歌打卡（内联） | 收藏时同步上报听歌记录，计入每日听歌时长 |
+| 听歌打卡（独立歌单） | 从自定义歌单取歌打卡，与收藏流程分离 |
+| 自动发动态 | 每日自动分享一首歌曲到个人动态 |
+| 删除上次动态 | 发新动态前自动删除上一条，避免刷屏 |
 
 ### 特性
-- 🔌 **SDK 直连** - 直接使用 SDK API，无需 HTTP 服务器
-- 📝 **完整日志** - 执行日志自动保存
-- 🔔 **消息推送** - Server 酱、PushPlus 支持
+
+- 纯 SDK 调用，无需启动 HTTP 服务
+- Cookie 仅需 `MUSIC_U` 字段，获取简单
+- 支持环境变量和 `config.json` 双模式配置
+- Cookie 301 过期时自动降级切换备用 Cookie
+- 执行日志自动保存到 `logs.json`
+- 支持 Server 酱、PushPlus 消息推送
+- 支持 PM2 定时执行
+
+### 运行要求
+
+- Node.js >= 18.0.0
 
 ---
 
-## 🚀 快速开始
+## 2. 部署教程
 
-### 1. 安装依赖
+### 快速上手（命令行）
 
 ```bash
+# 1. 克隆仓库
+git clone https://github.com/zhuixingzhe-baisheng/163music-vip-daily.git
+cd 163music-vip-daily
+
+# 2. 安装依赖
 npm install
-```
 
-### 2. 配置账号
-
-复制配置文件：
-```bash
+# 3. 复制配置文件
 cp config_example.json config.json
+
+# 4. 编辑 config.json，填入你的 MUSIC_U Cookie（获取方法见下方）
+nano config.json
+
+# 5. 运行
+node auto_tasks_enhanced.js
 ```
 
-编辑 `config.json`，添加你的 MUSIC_U Cookie：
+### 获取 Cookie
+
+1. 浏览器访问 https://music.163.com 并登录
+2. 按 F12 打开开发者工具
+3. 进入 **Application**（或 **存储**）标签页
+4. 左侧选择 **Cookies** > `https://music.163.com`
+5. 找到 `MUSIC_U`，复制其值
+6. 填入 `config.json` 的 `cookie` 字段，格式为 `MUSIC_U=你复制的值`
+
+> 只需 `MUSIC_U` 即可，不需要 `__csrf` 或 `NMTID`。
+
+### 环境变量配置（Docker / CI 场景）
+
+不创建 `config.json` 文件时，脚本自动读取以下环境变量：
+
+| 环境变量 | 说明 |
+|----------|------|
+| `NETEASE_MUSIC_U` | Cookie 的 MUSIC_U 值 |
+| `NETEASE_NICKNAME` | 账号昵称（可选，默认 "账号 1"） |
+| `SERVER_SENDKEY` | Server 酱 SendKey（可选） |
+| `PUSHPLUS_TOKEN` | PushPlus Token（可选） |
+
+```bash
+export NETEASE_MUSIC_U="你的 MUSIC_U 值"
+node auto_tasks_enhanced.js
+```
+
+### PM2 定时执行（服务器部署）
+
+```bash
+# 安装 PM2
+npm install -g pm2
+
+# 启动定时任务
+pm2 start ecosystem.config.js
+
+# 查看日志
+pm2 logs netease-tasks
+
+# 设置开机自启
+pm2 save && pm2 startup
+```
+
+默认每天早上 8:00 执行，修改时间请编辑 `ecosystem.config.js` 中的 `cron_restart` 字段。
+
+### 更新 Cookie（过期后）
+
+Cookie 过期时，编辑 `config.json` 替换新的 `MUSIC_U` 值即可。也可以设置环境变量 `NETEASE_MUSIC_U` 作为备用：当环境变量 Cookie 失效（返回 301）时，脚本自动降级使用 `config.json` 中的 Cookie。
+
+---
+
+## 3. 配置参数说明
+
+### config.json 完整示例
+
 ```json
 {
   "users": [
     {
-      "nickname": "测试用户",
+      "nickname": "我的账号",
       "cookie": "MUSIC_U=xxxxxxxxx"
     }
   ],
@@ -54,176 +128,93 @@ cp config_example.json config.json
   "enableYunbeiSignPC": true,
   "enableVipSign": true,
   "enableVipGrowthpoint": true,
+  "showVipTaskList": true,
   "enableVipMusicTasks": true,
-  "enableAutoPost": true
+  "vipMusicPlaylistId": 8402996200,
+  "vipMusicSongCount": 3,
+  "enableVipMusicScrobble": true,
+  "enableAutoPost": true,
+  "deletePreviousPost": true,
+  "postPlaylistId": 8402996200,
+  "postSongCount": 1,
+  "serverSendKey": "",
+  "pushPlusToken": "",
+  "pushPlusChannel": "",
+  "pushPlusWebhook": ""
 }
 ```
 
-### 3. 更新 Cookie
+### 任务开关
 
-Cookie 过期时，使用以下任一方法更新：
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `enableYunbeiSign` | boolean | `true` | 云贝签到（安卓端），每天可获取云贝 |
+| `enableYunbeiSignPC` | boolean | `true` | 云贝签到（PC 端），与安卓端独立 |
+| `enableVipSign` | boolean | `true` | VIP 乐签打卡，VIP 用户专属 |
+| `enableVipGrowthpoint` | boolean | `true` | 一键领取所有已完成任务的成长值 |
+| `showVipTaskList` | boolean | `true` | 运行后展示当前 VIP 任务列表 |
+| `enableVipMusicTasks` | boolean | `true` | VIP 音乐任务（收藏 + 取消收藏） |
+| `enableVipMusicScrobble` | boolean | `true` | 是否上报听歌打卡记录 |
+| `enableAutoPost` | boolean | `true` | 自动发布动态（分享歌曲） |
+| `deletePreviousPost` | boolean | `true` | 发新动态前删除上一条 |
 
-**方法 1：使用更新脚本**
-```bash
-./update_cookie.sh "MUSIC_U=你的新 cookie"
-```
+### VIP 音乐任务
 
-**方法 2：使用 sed 命令**
-```bash
-sed -i 's/\("cookie": "MUSIC_U=\)[^"]*/\1新的 cookie/g' config.json
-```
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `vipMusicPlaylistId` | number | `8402996200` | 收藏用的歌单 ID，每日从中选取歌曲进行收藏 |
+| `vipMusicSongCount` | number | `4` | 每次处理的歌曲数量，建议 1-10 |
+| `vipMusicFallbackPlaylistIds` | number[] | `[7785066739, 5453912201]` | 备用歌单列表，主歌单无可用歌曲时依次尝试 |
 
-**方法 3：手动编辑**
-```bash
-nano config.json  # 或使用 vim 等编辑器
-```
+### 听歌打卡（独立歌单）
 
-### 4. 运行任务
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `scrobblePlaylistId` | number | `0` | 独立打卡歌单 ID。设为 `0` 时不启用，打卡与收藏用同一歌单；设为歌单 ID 后从该歌单取歌单独打卡 |
+| `scrobbleSongCount` | number | `0` | 打卡歌曲数量。`-1` = 全部歌曲，`0` = 等同于 `vipMusicSongCount`，`>0` = 指定数量 |
 
-```bash
-# 直接运行
-node auto_tasks_enhanced.js
-```
+> 当 `scrobblePlaylistId` 未设置时，听歌打卡与收藏流程内联执行（收藏一首打一首）；设置后，收藏和打卡分离，分别从各自的歌单取歌。
 
----
+### 动态发布
 
-## 📋 使用步骤
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `postPlaylistId` | number | `8402996200` | 发布动态时分享歌曲的来源歌单 |
+| `postSongCount` | number | `1` | 每次发布动态分享的歌曲数，建议 1-3 |
 
-### 1. 获取 Cookie
+### 消息推送
 
-1. 访问 https://music.163.com 并登录
-2. 按 F12 打开开发者工具
-3. 进入 **Network** → 刷新页面 → 点击任意请求 → **Headers**
-4. 找到 `Cookie: MUSIC_U=xxxxxxxxx`
-5. 复制 `MUSIC_U=xxxxxxxxx` 填入配置
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `serverSendKey` | string | `""` | [Server 酱](https://sct.ftqq.com/) SendKey，以 `SCT` 开头 |
+| `pushPlusToken` | string | `""` | [PushPlus](https://www.pushplus.plus/) Token |
+| `pushPlusChannel` | string | `"wechat"` | PushPlus 推送渠道，可选 `wechat` / `webhook` / `mail` 等 |
+| `pushPlusWebhook` | string | `""` | PushPlus webhook 地址（channel 为 webhook 时使用） |
 
-### 2. 配置任务
+### 用户配置
 
-编辑 `config.json`，根据需要开启/关闭任务。
-
-### 3. 运行
-
-```bash
-node auto_tasks_enhanced.js
-```
-
----
-
-## ⚙️ 运行模式
-
-### 前台运行（适合调试）
-
-```bash
-node auto_tasks_enhanced.js
-```
-
-### 后台运行（推荐使用 PM2）
-
-### 定时执行（PM2）
-
-`ecosystem.config.js` 已配置定时任务：
-
-```javascript
-cron_restart: '0 8 * * *' // 每天早上 8:00 执行
-```
-
-修改时间请编辑该配置文件。
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `users` | array | - | 用户列表，每项包含 `nickname`（昵称）和 `cookie`（MUSIC_U=xxx） |
+| `users[].nickname` | string | - | 账号标识，用于日志输出 |
+| `users[].cookie` | string | - | Cookie，格式 `MUSIC_U=xxxxxxxxx` |
 
 ---
 
-## 📁 项目结构
+## 项目结构
 
 ```
 163music-vip-daily/
-├── auto_tasks_enhanced.js # 核心任务脚本
-├── task-runner.js         # 任务执行器
-├── ecosystem.config.js    # PM2 配置
-├── config.json            # 用户配置（自动生成）
-├── logs.json              # 执行日志（自动生成）
-└── package.json           # 项目配置
+├── auto_tasks_enhanced.js   # 主任务脚本
+├── task-runner.js            # 任务执行器（公共模块）
+├── api-extras/               # SDK 扩展模块（听歌打卡等）
+├── ecosystem.config.js       # PM2 定时配置
+├── config.json               # 用户配置（不提交到 git）
+├── config_example.json       # 配置模板
+├── logs.json                 # 执行日志
+└── package.json              # 项目依赖
 ```
 
----
-
-## ⚙️ 配置参数
-
-### 任务开关
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `enableYunbeiSign` | true | 云贝签到（安卓端） |
-| `enableYunbeiSignPC` | true | 云贝签到（PC 端） |
-| `enableVipSign` | true | VIP 乐签打卡 |
-| `enableVipGrowthpoint` | true | VIP 成长值领取 |
-| `enableVipMusicTasks` | true | VIP 音乐任务 |
-| `enableAutoPost` | true | 自动发布动态 |
-| `deletePreviousPost` | true | 删除上次动态 |
-
-### VIP 高级配置
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `vipMusicPlaylistId` | 8402996200 | 会员雷达歌单 ID |
-| `vipMusicSongCount` | 3 | 处理歌曲数量（1-10） |
-| `postPlaylistId` | 8402996200 | 发布动态歌单 ID |
-| `postSongCount` | 1 | 每次发布歌曲数（1-3） |
-
----
-
-## 📱 消息推送
-
-### Server 酱
-
-1. 访问 https://sct.ftqq.com/ 获取 SendKey
-2. 配置文件中添加 `serverSendKey: "SCTxxxxxxxx"`
-
-### PushPlus
-
-1. 访问 https://pushplus.plus/ 获取 Token
-2. 配置文件中添加：
-   - `pushplusToken: "xxxxxxxx"`
-   - `pushplusChannel: "wechat"` (可选)
-   - `pushplusWebhook: ""` (可选)
-
----
-
-## 🔧 故障排查
-
-### Cookie 过期
-
-**症状**：API 返回 401/400  
-**解决**：使用更新脚本快速刷新 Cookie
-
-```bash
-./update_cookie.sh "MUSIC_U=你的新 cookie"
-```
-
-或者手动编辑 `config.json` 文件。
-
-### 依赖未安装
-
-**症状**：启动时提示包未找到  
-**解决**：
-```bash
-npm install
-```
-
-### 查看日志
-
-```bash
-# PM2 日志
-pm2 logs
-
-# 手动查看日志文件
-cat logs.json
-```
-
----
-
-## 📄 License
+## License
 
 MIT
-
----
-
-**最后更新**: 2026-06-07

@@ -18,6 +18,8 @@ const fs = require('fs')
 const path = require('path')
 const taskRunner = require('./task-runner')
 const API = require('@neteasecloudmusicapienhanced/api')
+const apiExtras = require('./api-extras')
+Object.assign(API, apiExtras)
 
 const {
   vip_info,

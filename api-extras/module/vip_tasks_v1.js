@@ -1,6 +1,6 @@
 // 会员任务 - 新版
 
-const createOption = require('../util/option.js')
+const createOption = require('@neteasecloudmusicapienhanced/api/util/option.js')
 module.exports = (query, request) => {
   const data = {
     taskType: 'app_vip_task_center',

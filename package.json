@@ -19,7 +19,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@neteasecloudmusicapienhanced/api": "file:./api-enhanced"
+    "@neteasecloudmusicapienhanced/api": "^4.34.3"
   },
   "engines": {
     "node": ">=18.0.0"

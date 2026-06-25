@@ -19,7 +19,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@neteasecloudmusicapienhanced/api": "github:zhuixingzhe-baisheng/api-enhanced#main",
+    "@neteasecloudmusicapienhanced/api": "file:./api-enhanced",
     "node-cron": "^3.0.3"
   },
   "engines": {

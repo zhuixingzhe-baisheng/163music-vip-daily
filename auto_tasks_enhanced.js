@@ -74,6 +74,8 @@ function loadConfigFromEnv() {
     vipMusicPlaylistId: 8402996200,
     vipMusicSongCount: 4,
     enableVipMusicScrobble: true,
+    scrobblePlaylistId: 0,
+    scrobbleSongCount: 0,
     enableAutoPost: true,
     deletePreviousPost: true,
     postPlaylistId: 8402996200,
@@ -119,6 +121,8 @@ if (!config) {
       vipMusicFallbackPlaylistIds: configData.vipMusicFallbackPlaylistIds || [7785066739, 5453912201],
       vipMusicSongCount: configData.vipMusicSongCount || 4,
       enableVipMusicScrobble: configData.enableVipMusicScrobble !== undefined ? configData.enableVipMusicScrobble : true,
+      scrobblePlaylistId: configData.scrobblePlaylistId || 0,
+      scrobbleSongCount: configData.scrobbleSongCount !== undefined ? configData.scrobbleSongCount : 0,
       enableAutoPost: configData.enableAutoPost !== false,
       deletePreviousPost: configData.deletePreviousPost !== false,
       postPlaylistId: configData.postPlaylistId || 8402996200,
@@ -318,7 +322,7 @@ async function main() {
       if (config.enableVipMusicTasks) {
         console.log(`[${user.nickname}] 执行 VIP 音乐任务...`)
         runLogs.push(`🎵 VIP 音乐任务：执行中...`)
-        await runVipMusicTasks(user.cookie, config.vipMusicPlaylistId, config.vipMusicSongCount, runLogs, config.vipMusicFallbackPlaylistIds, config.enableVipMusicScrobble)
+        await runVipMusicTasks(user.cookie, config.vipMusicPlaylistId, config.vipMusicSongCount, runLogs, config.vipMusicFallbackPlaylistIds, config.enableVipMusicScrobble, config.scrobblePlaylistId, config.scrobbleSongCount)
       }
       
       // VIP 乐签打卡
@@ -519,7 +523,7 @@ async function main() {
 const { sleep } = taskRunner
 
 // VIP 音乐任务函数
-async function runVipMusicTasks(cookie, playlistId, songCount, logs = [], fallbackPlaylistIds = [7785066739, 5453912201], enableScrobble = false) {
+async function runVipMusicTasks(cookie, playlistId, songCount, logs = [], fallbackPlaylistIds = [7785066739, 5453912201], enableScrobble = false, scrobblePlaylistId = 0, scrobbleSongCount = -1) {
   try {
     // 先获取用户信息获取 uid
     const userProfile = await vip_info({ cookie })
@@ -670,8 +674,8 @@ async function runVipMusicTasks(cookie, playlistId, songCount, logs = [], fallba
         console.log(`    ✗ 收藏失败：${e.message}`)
       }
       
-      // 启用听歌记录时，上传听歌数据
-      if (enableScrobble && successTrackIds.includes(song.id)) {
+      // 启用听歌记录时，上传听歌数据（仅当未设置独立打卡歌单时）
+      if (enableScrobble && !scrobblePlaylistId && successTrackIds.includes(song.id)) {
         console.log(`  [2] 上传听歌记录 (eapi/weblog)...`)
         try {
           const scrobbleResult = await scrobble({
@@ -714,6 +718,43 @@ async function runVipMusicTasks(cookie, playlistId, songCount, logs = [], fallba
       logs.push(`🎵 VIP 音乐任务：成功收藏 ${targetCount} 首${scrobbleMsg}`)
     }
     
+    // 如果设置了独立打卡歌单，单独进行听歌打卡
+    if (enableScrobble && scrobblePlaylistId > 0) {
+      console.log(`\n  🎧 开始听歌打卡 (独立歌单: ${scrobblePlaylistId})...`)
+      try {
+        const scrobbleList = await playlist_detail({ id: scrobblePlaylistId, cookie })
+        if (scrobbleList.body.code === 200 && scrobbleList.body.playlist && scrobbleList.body.playlist.tracks) {
+          const scrobbleTracks = scrobbleList.body.playlist.tracks
+          let scrobbleCount = scrobbleSongCount >= 0 ? scrobbleSongCount : scrobbleTracks.length
+          if (scrobbleCount === 0 && scrobbleSongCount >= 0) scrobbleCount = songCount
+          const tracksToScrobble = scrobbleTracks.slice(0, scrobbleCount)
+          let scrobbleSuccess = 0
+          for (let i = 0; i < tracksToScrobble.length; i++) {
+            const track = tracksToScrobble[i]
+            const playTime = Math.floor(track.dt / 1000)
+            console.log(`  [打卡 ${i + 1}/${tracksToScrobble.length}] ${track.name} - ${(track.ar || []).map(a => a.name).join('/')}`)
+            try {
+              const sr = await scrobble({ cookie, id: track.id, sourceid: scrobblePlaylistId, time: playTime })
+              if (sr.body.code === 200) {
+                console.log(`    ✓ 已上报 (${(playTime / 60).toFixed(2)}分钟)`)
+                scrobbleSuccess++
+              } else {
+                console.log(`    ⊘ ${sr.body.msg || sr.body.message || '未知状态'}`)
+              }
+            } catch (e) {
+              console.log(`    ✗ 上报失败：${e.message}`)
+            }
+          }
+          console.log(`  ✓ 听歌打卡完成：${scrobbleSuccess}/${tracksToScrobble.length} 首`)
+          logs.push(`🎧 独立打卡 (歌单 ${scrobblePlaylistId})：${scrobbleSuccess}/${tracksToScrobble.length} 首`)
+        } else {
+          console.log(`  ⚠️ 打卡歌单 ${scrobblePlaylistId} 获取失败`)
+        }
+      } catch (e) {
+        console.log(`  ✗ 独立打卡失败：${e.message}`)
+      }
+    }
+
     // 记录收藏的歌曲详情（用于推送通知）
     if (successTrackIds.length > 0) {
       logs.push('')

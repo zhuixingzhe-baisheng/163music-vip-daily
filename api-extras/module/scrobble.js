@@ -1,7 +1,7 @@
 // 听歌打卡
 
 const createOption = require('@neteasecloudmusicapienhanced/api/util/option.js')
-const { APP_CONF } = require('../util/config.json')
+const { APP_CONF } = require('../util/config-domain.json')
 const DOMAIN = APP_CONF.clDomian
 module.exports = async (query, request) => {
   // 注入 os=osx 的 cookie

@@ -4,7 +4,7 @@
 const crypto = require('crypto')
 const zlib = require('zlib')
 const axios = require('axios')
-const { APP_CONF } = require('./config.json')
+const { APP_CONF } = require('./config-domain.json')
 const DOMAIN3 = APP_CONF.clDomian3
 
 // ---- ChaCha20 纯 JS 实现 ----

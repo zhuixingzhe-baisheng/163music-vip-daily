@@ -683,6 +683,7 @@ async function runVipMusicTasks(cookie, playlistId, songCount, logs = [], fallba
             id: song.id,
             sourceid: currentPlaylistId,
             time: playTime,
+            duration: Math.floor(song.dt / 1000),
           })
           const body = scrobbleResult.body
           if (body.code === 200) {
@@ -734,7 +735,7 @@ async function runVipMusicTasks(cookie, playlistId, songCount, logs = [], fallba
             const playTime = Math.floor(track.dt / 1000) + 10
             console.log(`  [打卡 ${i + 1}/${tracksToScrobble.length}] ${track.name} - ${(track.ar || []).map(a => a.name).join('/')}`)
             try {
-              const sr = await scrobble({ cookie, id: track.id, sourceid: scrobblePlaylistId, time: playTime })
+              const sr = await scrobble({ cookie, id: track.id, sourceid: scrobblePlaylistId, time: playTime, duration: Math.floor(track.dt / 1000) })
               if (sr.body.code === 200) {
                 console.log(`    ✓ 已上报 (${(playTime / 60).toFixed(2)}分钟)`)
                 scrobbleSuccess++

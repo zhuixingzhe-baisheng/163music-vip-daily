@@ -46,6 +46,7 @@ module.exports = async (query, request) => {
           id: query.id,
           sourceId: query.sourceid,
           time: query.time,
+          duration: query.duration,
           type: 'song',
           wifi: 0,
           source: 'list',

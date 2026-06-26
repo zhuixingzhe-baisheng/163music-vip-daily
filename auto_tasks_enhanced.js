@@ -652,16 +652,41 @@ async function runVipMusicTasks(cookie, playlistId, songCount, logs = [], fallba
       
       const song = songs[i]
       const playTime = Math.floor(song.dt / 1000) + 10
-      console.log(`    [2] 上传听歌记录 (eapi/weblog)...`)
+      
+      console.log(`  [待收藏 ${successTrackIds.length + 1}/${targetCount}] ${song.name} - ${(song.ar || []).map(a => a.name).join('/')}`)
+      console.log('  ' + '-'.repeat(40))
+      
+      // 1. 收藏歌曲
+      console.log('  [1] 收藏歌曲...')
       try {
-        const sr = await scrobble({
-          cookie,
-          id: song.id,
-          sourceid: currentPlaylistId,
-          time: playTime,
-        })
-        if (sr.body.code === 200) {
-          console.log(`    ✓ 听歌记录已上报 (${(playTime / 60).toFixed(2)}分钟)`)
+        const likeResult = await song_like({ cookie, id: song.id, like: true })
+        if (likeResult.body.code === 200 || likeResult.body.code === 201) {
+          console.log(`    ✓ 收藏成功`)
+          successTrackIds.push(song.id)
+        } else if (likeResult.body.code === 502) {
+          console.log(`    ⊘ 歌曲已收藏，跳过`)
+        } else if (likeResult.body.code === 401) {
+          console.log(`    ✗ 下架歌曲无法收藏：${likeResult.body.message}`)
+        } else {
+          console.log(`    ✗ 收藏失败：${likeResult.body.message || '未知错误'}`)
+        }
+      } catch (e) {
+        console.log(`    ✗ 收藏失败：${e.message}`)
+      }
+      
+      // 启用听歌记录时，上传听歌数据（仅当未设置独立打卡歌单时）
+      if (enableScrobble && !scrobblePlaylistId && successTrackIds.includes(song.id)) {
+        console.log(`  [2] 上传听歌记录 (eapi/weblog)...`)
+        try {
+          const scrobbleResult = await scrobble({
+            cookie,
+            id: song.id,
+            sourceid: currentPlaylistId,
+            time: playTime,
+          })
+          const body = scrobbleResult.body
+          if (body.code === 200) {
+            console.log(`    ✓ 听歌记录已上报 (${(playTime / 60).toFixed(2)}分钟)`)
           } else {
             console.log(`    ⊘ 听歌记录上报: ${body.msg || body.message || '未知状态'}`)
           }

@@ -434,13 +434,37 @@ async function main() {
         // 优先使用一键领取 (xeapi + getall)
         if (vip_growthpoint_getall) {
           console.log(`[${user.nickname}] 使用一键领取 (getall)...`)
-          const growthAllResult = await vip_growthpoint_getall({ cookie: user.cookie })
-          if (growthAllResult.body.code === 200 && growthAllResult.body.data?.result) {
-            console.log(`[${user.nickname}] ✓ 一键领取成长值成功`)
-            runLogs.push(`💰 一键领取成长值：成功`)
-          } else {
-            console.log(`[${user.nickname}] ✗ 一键领取成长值失败:`, growthAllResult.body.message || growthAllResult.body.code)
-            runLogs.push(`💰 一键领取成长值：失败`)
+          try {
+            let growthAllResult
+            try {
+              growthAllResult = await vip_growthpoint_getall({ cookie: user.cookie })
+            } catch (firstErr) {
+              // xeapi 密钥可能失效，删除并重新生成后重试一次
+              const errMsg = firstErr.message || String(firstErr)
+              if (errMsg.includes('xeapi') || errMsg.includes('public key')) {
+                console.log(`[${user.nickname}] ⚠️ xeapi 密钥失效，尝试重新生成...`)
+                try {
+                  if (fs.existsSync(xeapiKeyPath)) fs.unlinkSync(xeapiKeyPath)
+                  await generateConfig()
+                  console.log(`[${user.nickname}] ✓ xeapi 密钥已重新生成，重试领取...`)
+                  growthAllResult = await vip_growthpoint_getall({ cookie: user.cookie })
+                } catch (retryErr) {
+                  throw retryErr
+                }
+              } else {
+                throw firstErr
+              }
+            }
+            if (growthAllResult.body.code === 200 && growthAllResult.body.data?.result) {
+              console.log(`[${user.nickname}] ✓ 一键领取成长值成功`)
+              runLogs.push(`💰 一键领取成长值：成功`)
+            } else {
+              console.log(`[${user.nickname}] ✗ 一键领取成长值失败:`, growthAllResult.body.message || growthAllResult.body.code)
+              runLogs.push(`💰 一键领取成长值：失败`)
+            }
+          } catch (e) {
+            console.log(`[${user.nickname}] ✗ 一键领取成长值异常:`, e.message)
+            runLogs.push(`💰 一键领取成长值：异常`)
           }
         } else {
           // 降级：使用旧版 weapi 逐任务领取
@@ -864,11 +888,20 @@ async function autoPostEvent(cookie, nickname) {
       lastPostDate: null,
       lastPostId: null,
       lastPostSongId: null,
-      lastPostSongName: null
+      lastPostSongName: null,
+      lastPostScript: null
     }
   }
 
   const userRecord = userData[nickname]
+
+  // 检查今天是否已被其他脚本发布（防止 task-runner.js 与 auto_tasks_enhanced.js 冲突）
+  if (userRecord.lastPostDate === today && userRecord.lastPostScript && userRecord.lastPostScript !== 'auto_tasks_enhanced') {
+    console.log(`  ⊘ 今日已由 ${userRecord.lastPostScript} 发布动态，跳过避免冲突`)
+    console.log(`    上次发布：${userRecord.lastPostSongName || '未知歌曲'}`)
+    runLogs.push(`📝 自动动态：今日已由${userRecord.lastPostScript}发布，跳过`)
+    return
+  }
 
   // 检查是否需要删除上一次的动态
   if (config.deletePreviousPost && userRecord.lastPostId) {
@@ -960,6 +993,7 @@ async function autoPostEvent(cookie, nickname) {
       userRecord.lastPostId = String(eventId)
       userRecord.lastPostSongId = String(songId)
       userRecord.lastPostSongName = songName
+      userRecord.lastPostScript = 'auto_tasks_enhanced'
 
       console.log(`  ✓ 动态发布成功`)
       console.log(`    动态 ID: ${userRecord.lastPostId}`)

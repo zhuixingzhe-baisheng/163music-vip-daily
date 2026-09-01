@@ -390,13 +390,19 @@ async function executeUserTasks(user, config, options = {}) {
           lastPostDate: null,
           lastPostId: null,
           lastPostSongId: null,
-          lastPostSongName: null
+          lastPostSongName: null,
+          lastPostScript: null
         }
       }
       const userRecord = userData[nickname]
 
-      if (userRecord.lastPostDate === today) {
-        // 今日已发布，跳过
+      // 检查今天是否已被其他脚本发布（防止 task-runner.js 与 auto_tasks_enhanced.js 冲突）
+      if (userRecord.lastPostDate === today && userRecord.lastPostScript && userRecord.lastPostScript !== 'task-runner') {
+        const message = `📝 自动动态：今日已由 ${userRecord.lastPostScript} 发布，跳过避免冲突 (${userRecord.lastPostSongName || '未知歌曲'})`
+        logger.log(message); result.details.push(message)
+        if (onProgress) onProgress({ type: 'task', message })
+      } else if (userRecord.lastPostDate === today) {
+        // 今日已由本脚本发布，跳过
         const message = `📝 自动动态：今日已发布，跳过 (${userRecord.lastPostSongName || '未知歌曲'})`
         logger.log(message); result.details.push(message)
         if (onProgress) onProgress({ type: 'task', message })
@@ -454,6 +460,7 @@ async function executeUserTasks(user, config, options = {}) {
             userRecord.lastPostId = String(eventId || '')
             userRecord.lastPostSongId = String(songId)
             userRecord.lastPostSongName = songName
+            userRecord.lastPostScript = 'task-runner'
 
             const message = `✅ 自动发布动态：${songName}`
             logger.log(message); result.details.push(message)

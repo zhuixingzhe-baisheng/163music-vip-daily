@@ -903,7 +903,16 @@ async function autoPostEvent(cookie, nickname) {
     return
   }
 
-  // 检查是否需要删除上一次的动态
+  // 检查今天是否已由本脚本发布（必须在删除操作之前，避免删除今日动态后又跳过发布）
+  if (userRecord.lastPostDate === today) {
+    console.log(`  ⊘ 今日 (${today}) 已发布动态，跳过`)
+    console.log(`    上次发布：${userRecord.lastPostSongName || '未知歌曲'}`)
+    saveUserData(userData)
+    runLogs.push('📝 自动动态：今日已发布，跳过')
+    return
+  }
+
+  // 检查是否需要删除上一次的动态（昨日的旧动态）
   if (config.deletePreviousPost && userRecord.lastPostId) {
     console.log(`  发现上次动态 (ID: ${userRecord.lastPostId})，准备删除...`)
     try {
@@ -925,15 +934,6 @@ async function autoPostEvent(cookie, nickname) {
     }
 
     await sleep(1000)
-  }
-
-  // 检查今天是否已发布
-  if (userRecord.lastPostDate === today) {
-    console.log(`  ⊘ 今日 (${today}) 已发布动态，跳过`)
-    console.log(`    上次发布：${userRecord.lastPostSongName || '未知歌曲'}`)
-    saveUserData(userData)
-    runLogs.push('📝 自动动态：今日已发布，跳过')
-    return
   }
 
   // 获取歌单

@@ -18,8 +18,12 @@ const fs = require('fs')
 const path = require('path')
 const taskRunner = require('./task-runner')
 const API = require('@neteasecloudmusicapienhanced/api')
+const generateConfig = require('@neteasecloudmusicapienhanced/api/generateConfig')
 const apiExtras = require('./api-extras')
 Object.assign(API, apiExtras)
+
+const tmpPath = require('os').tmpdir()
+const xeapiKeyPath = path.resolve(tmpPath, 'xeapi_public_key')
 
 const {
   vip_info,
@@ -229,6 +233,17 @@ async function main() {
   console.log('='.repeat(60))
   console.log('网易云音乐自动任务 (API Enhanced 版本)')
   console.log('='.repeat(60))
+  
+  // 初始化 xeapi 公钥（用于 VIP 成长值一键领取）
+  if (!fs.existsSync(xeapiKeyPath)) {
+    console.log('🔑 初始化 xeapi 公钥...')
+    try {
+      await generateConfig()
+      console.log('✅ xeapi 公钥已就绪')
+    } catch (e) {
+      console.log(`⚠️ xeapi 公钥初始化失败: ${e.message}`)
+    }
+  }
   
   runLogs.push(`📅 执行时间：${startTime.toLocaleString('zh-CN')}`)
   runLogs.push('')

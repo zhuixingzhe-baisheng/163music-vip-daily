@@ -3,6 +3,8 @@
  * 提取自 api-server.js 和 auto_tasks_enhanced.js 的公共任务逻辑
  */
 
+const fs = require('fs')
+const path = require('path')
 const API = require('@neteasecloudmusicapienhanced/api')
 
 const {
@@ -41,6 +43,29 @@ function sleep(ms) {
 function getTodayString() {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
+
+const dataFilePath = path.join(__dirname, 'user_data.json')
+
+function loadUserData() {
+  try {
+    if (fs.existsSync(dataFilePath)) {
+      return JSON.parse(fs.readFileSync(dataFilePath, 'utf8'))
+    }
+  } catch (e) {
+    console.log('[数据] 读取用户数据失败:', e.message)
+  }
+  return {}
+}
+
+function saveUserData(data) {
+  try {
+    fs.writeFileSync(dataFilePath, JSON.stringify(data, null, 2), 'utf8')
+    return true
+  } catch (e) {
+    console.log('[数据] 保存用户数据失败:', e.message)
+    return false
+  }
 }
 
 async function playStateSubmit(cookie, resourceId, resourceType = 'song', progress = 0, playMode = 'list_loop', sessionId = null) {
@@ -353,38 +378,97 @@ async function executeUserTasks(user, config, options = {}) {
 
     // 7. 自动发布动态
     if (config.enableAutoPost !== false) {
-      const postSongCount = Math.max(1, Math.min(3, config.postSongCount || 1))
       const playlistId = config.postPlaylistId || 8402996200
-      if (config.deletePreviousPost) {
-        try {
-          const eventsRes = await event({ pagesize: 1, cookie })
-          if (eventsRes.body.code === 200 && eventsRes.body.events?.length > 0) {
-            const lastEventId = eventsRes.body.events[0].id
-            const delRes = await event_del({ evId: lastEventId, cookie })
-            if (delRes.body.code === 200) {
-              const message = '🗑️ 删除上次动态：成功'
-              logger.log(message); result.details.push(message)
-              if (onProgress) onProgress({ type: 'task', message })
-            }
-          }
-        } catch (e) { logger.warn(`⚠️ 删除上次动态失败：${e.message}`) }
+
+      // 加载用户数据，检查今天是否已发布（去重机制）
+      const userData = loadUserData()
+      const today = getTodayString()
+      const nickname = user.nickname
+
+      if (!userData[nickname]) {
+        userData[nickname] = {
+          lastPostDate: null,
+          lastPostId: null,
+          lastPostSongId: null,
+          lastPostSongName: null
+        }
       }
-      try {
-        const getPlDetail = getPlaylistDetail || playlist_detail
-        const playlistRes = await getPlDetail({ id: playlistId, cookie })
-        const playlistData = playlistRes.body
-        if (playlistData.code === 200 && playlistData.playlist?.trackIds) {
-          const shareRes = await share_resource({ type: 'playlist', id: playlistId, msg: '每日推荐', cookie })
+      const userRecord = userData[nickname]
+
+      if (userRecord.lastPostDate === today) {
+        // 今日已发布，跳过
+        const message = `📝 自动动态：今日已发布，跳过 (${userRecord.lastPostSongName || '未知歌曲'})`
+        logger.log(message); result.details.push(message)
+        if (onProgress) onProgress({ type: 'task', message })
+      } else {
+        // 删除上一次的动态（通过 API 获取最新动态，比存储 lastPostId 更可靠）
+        if (config.deletePreviousPost) {
+          try {
+            const eventsRes = await event({ pagesize: 1, cookie })
+            if (eventsRes.body.code === 200 && eventsRes.body.events?.length > 0) {
+              const lastEventId = eventsRes.body.events[0].id
+              const delRes = await event_del({ evId: lastEventId, cookie })
+              if (delRes.body.code === 200) {
+                const message = '🗑️ 删除上次动态：成功'
+                logger.log(message); result.details.push(message)
+                if (onProgress) onProgress({ type: 'task', message })
+                userRecord.lastPostId = null
+                userRecord.lastPostSongId = null
+                userRecord.lastPostSongName = null
+              }
+            }
+          } catch (e) { logger.warn(`⚠️ 删除上次动态失败：${e.message}`) }
+        }
+
+        try {
+          // 获取歌单并随机选择一首歌曲
+          const getPlDetail = getPlaylistDetail || playlist_detail
+          const playlistRes = await getPlDetail({ id: playlistId, cookie })
+          const playlistData = playlistRes.body
+
+          if (playlistData.code !== 200) {
+            throw new Error('获取歌单失败')
+          }
+
+          const tracks = playlistData.playlist?.tracks || []
+          if (tracks.length === 0) {
+            throw new Error('歌单为空')
+          }
+
+          // 随机选择一首歌曲分享
+          const songIndex = Math.floor(Math.random() * tracks.length)
+          const song = tracks[songIndex]
+          const songId = song.id
+          const songName = `${song.name} - ${song.ar?.[0]?.name || '未知歌手'}`
+
+          const shareRes = await share_resource({
+            cookie,
+            type: 'song',
+            id: songId,
+            msg: `今日推荐：${songName} #网易云音乐`
+          })
+
           if (shareRes.body.code === 200) {
-            const message = `✅ 自动发布动态：分享歌单 ${playlistId}`
+            const eventId = shareRes.body.id || shareRes.body.data?.id
+            userRecord.lastPostDate = today
+            userRecord.lastPostId = String(eventId || '')
+            userRecord.lastPostSongId = String(songId)
+            userRecord.lastPostSongName = songName
+
+            const message = `✅ 自动发布动态：${songName}`
             logger.log(message); result.details.push(message)
             if (onProgress) onProgress({ type: 'task', message })
+          } else {
+            throw new Error(shareRes.body.message || `错误码 ${shareRes.body.code}`)
           }
-        } else { throw new Error('获取歌单失败') }
-      } catch (e) {
-        const message = `❌ 自动发布动态：${e.message}`
-        logger.error(message); result.details.push(message)
-        if (onProgress) onProgress({ type: 'error', message })
+        } catch (e) {
+          const message = `❌ 自动发布动态：${e.message}`
+          logger.error(message); result.details.push(message)
+          if (onProgress) onProgress({ type: 'error', message })
+        }
+
+        // 保存发布记录
+        saveUserData(userData)
       }
     }
 

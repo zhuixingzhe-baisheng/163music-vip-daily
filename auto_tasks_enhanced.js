@@ -43,8 +43,20 @@ const {
   like,
   scrobble,
   scrobble_v1,
-  likelist
+  likelist,
+  // 云小编相关 API
+  rep_ugc_user_get,
+  rep_ugc_user_sign,
+  rep_ugc_user_vip,
+  rep_ugc_exam_info_get,
+  rep_ugc_exam_start,
+  rep_ugc_exam_question_single_get,
+  rep_ugc_exam_submit,
+  rep_ugc_exam_result_get
 } = require('@neteasecloudmusicapienhanced/api')
+
+// 带连字符的函数名需要单独获取
+const rep_ugc_user_collect_vip = API['rep_ugc_user_collect-vip']
 
 // 加载配置文件 - 支持环境变量和配置文件两种方式
 const configPath = path.join(__dirname, 'config.json')
@@ -84,6 +96,8 @@ function loadConfigFromEnv() {
     deletePreviousPost: true,
     postPlaylistId: 8402996200,
     postSongCount: 1,
+    enableCloudEditor: true,
+    enableCloudEditorExam: true,
     serverSendKey: serverSendKey || '',
     pushPlusToken: pushPlusToken || '',
     pushPlusChannel: pushPlusChannel,
@@ -131,6 +145,9 @@ if (!config) {
       deletePreviousPost: configData.deletePreviousPost !== false,
       postPlaylistId: configData.postPlaylistId || 8402996200,
       postSongCount: configData.postSongCount || 1,
+      // 云小编配置
+      enableCloudEditor: configData.enableCloudEditor !== false,
+      enableCloudEditorExam: configData.enableCloudEditorExam !== false,
       // 推送配置
       serverSendKey: configData.serverSendKey || '',
       pushPlusToken: configData.pushplusToken || '',
@@ -501,6 +518,11 @@ async function main() {
             }
           }
         }
+      }
+      
+      // 云小编任务（签到、审核、领取会员）
+      if (config.enableCloudEditor !== false) {
+        await runCloudEditorTasks(user.cookie, user.nickname)
       }
       
       // 自动发布动态
@@ -1014,6 +1036,183 @@ async function autoPostEvent(cookie, nickname) {
   }
 
   saveUserData(userData)
+}
+
+// 云小编任务
+async function runCloudEditorTasks(cookie, nickname) {
+  console.log(`[${nickname}] 执行云小编任务...`)
+
+  // 1. 云小编签到
+  try {
+    const signRes = await rep_ugc_user_sign({ cookie })
+    if (signRes.body.code === 200) {
+      console.log(`  ✓ 云小编签到成功`)
+      runLogs.push('☁️ 云小编：签到成功')
+    } else {
+      console.log(`  ⊘ 云小编签到：${signRes.body.message || signRes.body.code}`)
+      runLogs.push(`☁️ 云小编：${signRes.body.message || signRes.body.code}`)
+    }
+  } catch (e) {
+    console.log(`  ✗ 云小编签到异常：${e.message}`)
+    runLogs.push(`☁️ 云小编：签到异常 - ${e.message}`)
+  }
+
+  await sleep(1000)
+
+  // 2. 获取用户详情
+  let userPoints = 0
+  try {
+    const userRes = await rep_ugc_user_get({ cookie })
+    if (userRes.body.code === 200) {
+      userPoints = userRes.body.data?.points || userRes.body.data?.contribution || 0
+      console.log(`  ℹ️ 当前积分：${userPoints}`)
+    }
+  } catch (e) {
+    console.log(`  ℹ️ 获取用户详情失败：${e.message}`)
+  }
+
+  // 3. 完成审核任务（考试）- 如果积分不足50则做任务
+  if (userPoints < 50 && config.enableCloudEditorExam !== false) {
+    console.log(`  📝 积分不足50，开始完成审核任务...`)
+    const examTypes = [
+      'musicalStyleEnter',  // 歌曲曲风审核
+      'languageEnter',      // 歌曲语种审核
+      'oriSingerEnter',     // 歌曲原唱审核
+      'emotionEnter'        // 情绪标签审核
+    ]
+
+    for (const examType of examTypes) {
+      try {
+        // 检查考试状态
+        const infoRes = await rep_ugc_exam_info_get({ cookie, examType })
+        if (infoRes.body.code !== 200) {
+          console.log(`  ⊘ ${examType}：${infoRes.body.message || infoRes.body.code}`)
+          continue
+        }
+
+        const examData = infoRes.body.data
+        const taskId = examData?.taskId || examData?.id
+
+        if (!taskId) {
+          // 没有进行中的任务，开始新任务
+          const startRes = await rep_ugc_exam_start({ cookie, examType })
+          if (startRes.body.code !== 200) {
+            console.log(`  ⊘ 开始${examType}失败：${startRes.body.message || startRes.body.code}`)
+            continue
+          }
+          const newTaskId = startRes.body.data?.taskId || startRes.body.data?.id
+          if (!newTaskId) {
+            console.log(`  ⊘ ${examType}：未获取到 taskId`)
+            continue
+          }
+          await sleep(500)
+          await doExamQuestions(cookie, examType, newTaskId, nickname)
+        } else {
+          // 有进行中的任务，继续答题
+          await doExamQuestions(cookie, examType, taskId, nickname)
+        }
+
+        await sleep(1000)
+      } catch (e) {
+        console.log(`  ✗ ${examType} 异常：${e.message}`)
+      }
+    }
+
+    // 重新获取用户积分
+    try {
+      const userRes = await rep_ugc_user_get({ cookie })
+      if (userRes.body.code === 200) {
+        userPoints = userRes.body.data?.points || userRes.body.data?.contribution || 0
+        console.log(`  ℹ️ 任务完成后积分：${userPoints}`)
+      }
+    } catch (e) {}
+  }
+
+  await sleep(1000)
+
+  // 4. 领取会员（积分达50可领1日黑胶）
+  try {
+    const vipRes = await rep_ugc_user_vip({ cookie })
+    if (vipRes.body.code === 200) {
+      const status = vipRes.body.data?.status
+      if (status === 10 || status === 20) {
+        // 可领取
+        const collectRes = await rep_ugc_user_collect_vip({ cookie, activityId: '5001' })
+        if (collectRes.body.code === 200) {
+          console.log(`  🎉 云小编：成功领取1日黑胶会员！`)
+          runLogs.push('☁️ 云小编：领取1日黑胶会员成功')
+        } else {
+          console.log(`  ✗ 领取会员失败：${collectRes.body.message || collectRes.body.code}`)
+          runLogs.push(`☁️ 云小编：领取会员失败`)
+        }
+      } else if (status === 30) {
+        console.log(`  ⊘ 云小编：今日已领取会员，明天再来`)
+      } else {
+        console.log(`  ⊘ 云小编：积分不足（${userPoints}/50），无法领取会员`)
+      }
+    }
+  } catch (e) {
+    console.log(`  ✗ 云小编会员领取异常：${e.message}`)
+    runLogs.push(`☁️ 云小编：会员领取异常 - ${e.message}`)
+  }
+}
+
+// 完成考试题目
+async function doExamQuestions(cookie, examType, taskId, nickname) {
+  let answeredCount = 0
+  const maxQuestions = 5 // 最多答5题
+
+  while (answeredCount < maxQuestions) {
+    try {
+      // 获取题目
+      const questionRes = await rep_ugc_exam_question_single_get({ cookie, examType, taskId })
+      if (questionRes.body.code !== 200) {
+        console.log(`    ⊘ 获取题目失败：${questionRes.body.message || questionRes.body.code}`)
+        break
+      }
+
+      const question = questionRes.body.data
+      if (!question?.questionId) {
+        // 没有更多题目了
+        break
+      }
+
+      // 随机选择答案（A对/B错）
+      const answer = Math.random() > 0.5 ? 'A' : 'B'
+      console.log(`    📝 答题 ${answeredCount + 1}：${answer}`)
+
+      // 提交答案
+      const submitRes = await rep_ugc_exam_submit({
+        cookie,
+        examType,
+        taskId,
+        questionId: question.questionId,
+        answer
+      })
+
+      if (submitRes.body.code === 200) {
+        answeredCount++
+        await sleep(800)
+      } else {
+        console.log(`    ✗ 提交失败：${submitRes.body.message || submitRes.body.code}`)
+        break
+      }
+    } catch (e) {
+      console.log(`    ✗ 答题异常：${e.message}`)
+      break
+    }
+  }
+
+  // 获取考试结果
+  if (answeredCount > 0) {
+    try {
+      const resultRes = await rep_ugc_exam_result_get({ cookie, examType, taskId })
+      if (resultRes.body.code === 200) {
+        const result = resultRes.body.data
+        console.log(`  ✓ ${examType} 完成，答对 ${result?.correctCount || '?'}/${answeredCount} 题`)
+      }
+    } catch (e) {}
+  }
 }
 
 // 收集运行日志

@@ -410,35 +410,62 @@ async function main() {
         }
       }
 
-      // 云贝 todo 任务完成
+      // 云贝任务完成（所有任务 + todo 任务）
       if (config.enableYunbeiTaskFinish) {
         console.log(`[${user.nickname}] 执行云贝任务完成...`)
         try {
+          // 1. 获取所有任务
+          const allRes = await yunbei_tasks({ cookie: user.cookie })
+          let finishable = []
+          if (allRes.body.code === 200) {
+            const allTasks = allRes.body.data || []
+            // 筛选可领取的任务：已完成但未领取奖励（completed=true, completedPoint=0, userTaskId!=0）
+            // 或状态为 100（已完成待领取）
+            finishable = allTasks.filter(t =>
+              t.userTaskId && t.userTaskId !== 0 &&
+              !t.completedPoint &&
+              (t.completed || t.status === 100)
+            )
+            console.log(`[${user.nickname}] 云贝所有任务：${allTasks.length} 个，可领取：${finishable.length} 个`)
+          }
+
+          // 2. 获取 todo 任务（可能含额外可完成的）
           const todoRes = await yunbei_tasks_todo({ cookie: user.cookie })
           if (todoRes.body.code === 200) {
             const todos = todoRes.body.data || []
-            if (todos.length === 0) {
-              console.log(`[${user.nickname}] 云贝任务：无待完成任务`)
-              runLogs.push(`☁️ 云贝任务: 无待完成任务`)
-            } else {
-              let finished = 0
-              for (const todo of todos) {
-                const userTaskId = todo.userTaskId
-                if (!userTaskId) continue
-                const finishRes = await yunbei_task_finish({ cookie: user.cookie, userTaskId })
-                if (finishRes.body.code === 200) {
-                  finished++
-                  console.log(`[${user.nickname}] 云贝任务完成：${todo.taskName || userTaskId}`)
-                } else {
-                  console.log(`[${user.nickname}] 云贝任务失败：${todo.taskName || userTaskId} - ${finishRes.body.message || finishRes.body.code}`)
+            for (const todo of todos) {
+              if (todo.userTaskId && todo.userTaskId !== 0) {
+                // 避免重复
+                if (!finishable.find(t => t.userTaskId === todo.userTaskId)) {
+                  finishable.push({ userTaskId: todo.userTaskId, taskName: todo.taskName, taskPoint: todo.taskPoint, depositCode: todo.depositCode })
                 }
-                await sleep(500)
               }
-              runLogs.push(`☁️ 云贝任务: 完成 ${finished}/${todos.length} 个`)
             }
+          }
+
+          if (finishable.length === 0) {
+            console.log(`[${user.nickname}] 云贝任务：无待领取任务`)
+            runLogs.push(`☁️ 云贝任务: 无待领取任务`)
           } else {
-            console.log(`[${user.nickname}] 云贝任务列表查询失败：${todoRes.body.message || todoRes.body.code}`)
-            runLogs.push(`☁️ 云贝任务: 查询失败`)
+            let finished = 0
+            let earnedPoints = 0
+            for (const task of finishable) {
+              const finishRes = await yunbei_task_finish({
+                cookie: user.cookie,
+                userTaskId: task.userTaskId,
+                depositCode: task.depositCode || '0'
+              })
+              if (finishRes.body.code === 200) {
+                finished++
+                const points = task.taskPoint || 0
+                earnedPoints += points
+                console.log(`[${user.nickname}] 云贝任务完成：${task.taskName || task.userTaskId} (+${points} 云贝)`)
+              } else {
+                console.log(`[${user.nickname}] 云贝任务失败：${task.taskName || task.userTaskId} - ${finishRes.body.message || finishRes.body.code}`)
+              }
+              await sleep(500)
+            }
+            runLogs.push(`☁️ 云贝任务: 完成 ${finished}/${finishable.length} 个，获得 ${earnedPoints} 云贝`)
           }
         } catch (e) {
           console.log(`[${user.nickname}] 云贝任务异常：${e.message}`)

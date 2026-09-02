@@ -16,7 +16,7 @@
 | 云贝签到（安卓端） | 每日安卓端云贝签到，获取云贝积分 |
 | 云贝签到（PC 端） | 每日 PC 端云贝签到，与安卓端独立累计 |
 | 云贝广告任务 | 听歌得云贝，每日 10 次 × 150 = 1500 云贝 |
-| 云贝任务完成 | 自动完成云贝 todo 任务，领取云贝积分 |
+| 云贝任务完成 | 获取全量任务列表，自动领取已完成任务的云贝奖励 |
 | VIP 乐签打卡 | VIP 用户每日打卡，获取成长值 |
 | VIP 成长值领取 | 一键领取所有已完成 VIP 任务的成长值 |
 | VIP 音乐任务 | 自动从指定歌单收藏歌曲、取消收藏，刷 VIP 等级经验 |
@@ -149,7 +149,7 @@ Cookie 过期时，编辑 `config.json` 替换新的 `MUSIC_U` 值即可。也�
   "enableYunbeiSign": true,          // 云贝签到（安卓端），每天可获取云贝
   "enableYunbeiSignPC": true,        // 云贝签到（PC 端），与安卓端独立累计
   "enableYunbeiAdTask": true,       // 云贝广告任务（听歌得云贝，每日 10 次 × 150 = 1500 云贝）
-  "enableYunbeiTaskFinish": true,   // 云贝 todo 任务自动完成
+  "enableYunbeiTaskFinish": true,   // 云贝任务自动领取（全量任务 + todo 任务）
   "enableVipSign": true,             // VIP 乐签打卡，VIP 用户每日打卡获取成长值
   "enableVipGrowthpoint": true,      // 一键领取所有已完成 VIP 任务的成长值
   "showVipTaskList": true,           // 运行后展示当前 VIP 任务列表

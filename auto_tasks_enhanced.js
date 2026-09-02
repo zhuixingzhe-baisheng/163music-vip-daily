@@ -32,6 +32,14 @@ const {
   vip_sign_detail,
   yunbei,
   yunbei_sign,
+  yunbei_info,
+  yunbei_today,
+  yunbei_tasks,
+  yunbei_tasks_todo,
+  yunbei_task_finish,
+  yunbei_task_list_v1,
+  yunbei_task_finish_v1,
+  yunbei_task_recommend_song,
   vip_tasks,
   vip_growthpoint_get,
   vip_growthpoint_getall,
@@ -89,6 +97,8 @@ function loadConfigFromEnv() {
     ],
     enableYunbeiSign: true,
     enableYunbeiSignPC: true,
+    enableYunbeiAdTask: true,
+    enableYunbeiTaskFinish: true,
     enableVipSign: true,
     enableVipGrowthpoint: true,
     showVipTaskList: true,
@@ -140,6 +150,8 @@ if (!config) {
       })),
       enableYunbeiSign: configData.enableYunbeiSign !== false,
       enableYunbeiSignPC: configData.enableYunbeiSignPC !== false,
+      enableYunbeiAdTask: configData.enableYunbeiAdTask !== false,
+      enableYunbeiTaskFinish: configData.enableYunbeiTaskFinish !== false,
       enableVipSign: configData.enableVipSign !== false,
       enableVipGrowthpoint: configData.enableVipGrowthpoint !== false,
       showVipTaskList: configData.showVipTaskList !== false,
@@ -358,6 +370,79 @@ async function main() {
           runLogs.push(`☁️ 云贝签到 (PC): 获得 ${shells} 云贝`)
         } else {
           runLogs.push(`☁️ 云贝签到 (PC): ${yunbeiSignResult.body.message || '失败'}`)
+        }
+      }
+
+      // 云贝广告任务（听歌得云贝，每日 10 次 × 150 = 1500 云贝）
+      if (config.enableYunbeiAdTask) {
+        console.log(`[${user.nickname}] 执行云贝广告任务...`)
+        try {
+          const listRes = await yunbei_task_list_v1({ cookie: user.cookie })
+          if (listRes.body.code === 200) {
+            const { times = 0, singleAmount = 150 } = listRes.body.data || {}
+            const remaining = 10 - times
+            if (remaining <= 0) {
+              console.log(`[${user.nickname}] 云贝广告任务：今日已完成 ${times} 次`)
+              runLogs.push(`☁️ 云贝广告任务: 今日已完成 ${times} 次`)
+            } else {
+              console.log(`[${user.nickname}] 云贝广告任务：今日已完成 ${times} 次，剩余 ${remaining} 次`)
+              let earned = 0
+              for (let i = 0; i < remaining; i++) {
+                const finishRes = await yunbei_task_finish_v1({ cookie: user.cookie, yunbeiAmount: singleAmount })
+                if (finishRes.body.code === 200 && finishRes.body.data) {
+                  earned += singleAmount
+                  console.log(`[${user.nickname}] 云贝广告任务 第 ${i + 1} 次：+${singleAmount} 云贝`)
+                } else {
+                  console.log(`[${user.nickname}] 云贝广告任务 第 ${i + 1} 次失败：${finishRes.body.message || finishRes.body.code}`)
+                  break
+                }
+                await sleep(1000)
+              }
+              runLogs.push(`☁️ 云贝广告任务: 完成 ${remaining} 次，获得 ${earned} 云贝`)
+            }
+          } else {
+            console.log(`[${user.nickname}] 云贝广告任务状态查询失败：${listRes.body.message || listRes.body.code}`)
+            runLogs.push(`☁️ 云贝广告任务: 查询失败`)
+          }
+        } catch (e) {
+          console.log(`[${user.nickname}] 云贝广告任务异常：${e.message}`)
+          runLogs.push(`☁️ 云贝广告任务: 异常`)
+        }
+      }
+
+      // 云贝 todo 任务完成
+      if (config.enableYunbeiTaskFinish) {
+        console.log(`[${user.nickname}] 执行云贝任务完成...`)
+        try {
+          const todoRes = await yunbei_tasks_todo({ cookie: user.cookie })
+          if (todoRes.body.code === 200) {
+            const todos = todoRes.body.data || []
+            if (todos.length === 0) {
+              console.log(`[${user.nickname}] 云贝任务：无待完成任务`)
+              runLogs.push(`☁️ 云贝任务: 无待完成任务`)
+            } else {
+              let finished = 0
+              for (const todo of todos) {
+                const userTaskId = todo.userTaskId
+                if (!userTaskId) continue
+                const finishRes = await yunbei_task_finish({ cookie: user.cookie, userTaskId })
+                if (finishRes.body.code === 200) {
+                  finished++
+                  console.log(`[${user.nickname}] 云贝任务完成：${todo.taskName || userTaskId}`)
+                } else {
+                  console.log(`[${user.nickname}] 云贝任务失败：${todo.taskName || userTaskId} - ${finishRes.body.message || finishRes.body.code}`)
+                }
+                await sleep(500)
+              }
+              runLogs.push(`☁️ 云贝任务: 完成 ${finished}/${todos.length} 个`)
+            }
+          } else {
+            console.log(`[${user.nickname}] 云贝任务列表查询失败：${todoRes.body.message || todoRes.body.code}`)
+            runLogs.push(`☁️ 云贝任务: 查询失败`)
+          }
+        } catch (e) {
+          console.log(`[${user.nickname}] 云贝任务异常：${e.message}`)
+          runLogs.push(`☁️ 云贝任务: 异常`)
         }
       }
       

@@ -1426,32 +1426,42 @@ function detectLanguage(lyric, artists) {
   return null
 }
 
-// LLM 调用（智谱 GLM-4-Flash）
+// LLM 调用（智谱 GLM-4-Flash，带重试）
 async function askLLM(prompt) {
   const apiKey = config.llmApiKey
   if (!apiKey) return null
 
-  try {
-    const res = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'glm-4-flash',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.1,
-        max_tokens: 10
+  const maxRetries = 3
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const res = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'glm-4-flash',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.1,
+          max_tokens: 10
+        })
       })
-    })
-    const data = await res.json()
-    const content = data?.choices?.[0]?.message?.content?.trim()
-    return content
-  } catch (e) {
-    console.log(`    ⚠️ LLM 调用失败：${e.message}`)
-    return null
+      const data = await res.json()
+      const content = data?.choices?.[0]?.message?.content?.trim()
+      if (content) return content
+      if (attempt < maxRetries - 1) {
+        console.log(`    ⚠️ LLM 第 ${attempt + 1} 次无响应，重试中...`)
+        await sleep(2000)
+      }
+    } catch (e) {
+      console.log(`    ⚠️ LLM 第 ${attempt + 1} 次调用失败：${e.message}`)
+      if (attempt < maxRetries - 1) {
+        await sleep(2000)
+      }
+    }
   }
+  return null
 }
 
 // LLM 判断曲风/情绪标签

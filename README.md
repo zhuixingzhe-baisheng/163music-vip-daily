@@ -22,6 +22,23 @@
 | 听歌打卡（独立歌单） | 从自定义歌单取歌打卡，与收藏流程分离 |
 | 自动发动态 | 每日自动分享一首歌曲到个人动态 |
 | 删除上次动态 | 发新动态前自动删除上一条，避免刷屏 |
+| 云小编签到 | 每日签到领取 5 积分 |
+| 云小编审核任务 | 自动完成入站考试并执行歌曲审核任务，刷取积分 |
+| 云小编领取会员 | 积分达 50 自动领取 1 日黑胶 VIP |
+| 云小编每日抽奖 | 消耗 200 积分抽奖，每日最多 3 次 |
+
+### 智能答题策略
+
+云小编入站考试和审核任务使用多策略智能答题，无需人工干预：
+
+| 审核类型 | 策略 | 正确率 |
+|---------|------|--------|
+| 歌曲语种审核 | 歌词字符集检测（韩/日/中/俄/泰/越/法/德/西/葡等） | ~100% |
+| 歌曲原唱审核 | 歌手名模糊匹配 | ~80% |
+| 歌曲曲风审核 | LLM 分析（智谱 GLM-4-Flash） | ~90% |
+| 情绪标签审核 | LLM 分析 + 网易云标签定义 | ~90% |
+
+> LLM 答题需要配置 `llmApiKey`（智谱 AI 免费 API Key），未配置时曲风/情绪标签降级为随机答题。
 
 ### 特性
 
@@ -32,10 +49,12 @@
 - 执行日志自动保存到 `logs.json`
 - 支持 Server 酱、PushPlus 消息推送
 - 支持 PM2 定时执行
+- 云小编智能答题：语种检测 + 歌手匹配 + LLM 分析
 
 ### 运行要求
 
 - Node.js >= 18.0.0
+- （可选）智谱 AI API Key 用于 LLM 答题，在 https://open.bigmodel.cn 免费获取
 
 ---
 
@@ -157,7 +176,17 @@ Cookie 过期时，编辑 `config.json` 替换新的 `MUSIC_U` 值即可。也�
   "serverSendKey": "",             // Server 酱 SendKey，以 SCT 开头。留空不推送
   "pushPlusToken": "",             // PushPlus Token，留空不推送
   "pushPlusChannel": "wechat",     // PushPlus 推送渠道：wechat / webhook / mail 等
-  "pushPlusWebhook": ""            // PushPlus webhook 地址（channel 为 webhook 时使用）
+  "pushPlusWebhook": "",           // PushPlus webhook 地址（channel 为 webhook 时使用）
+
+  // ==================== 云小编 ====================
+  "enableCloudEditor": true,       // 云小编总开关（签到 + 领取会员）
+  "enableCloudEditorExam": true,   // 云小编入站考试（自动答题）
+  "enableCloudEditorTask": true,   // 云小编审核任务（需先通过考试）
+  "enableCloudEditorLottery": false, // 云小编每日抽奖（消耗 200 积分/次）
+  "cloudEditorTaskCount": 10,      // 每种审核类型最大任务数（建议 ≤50 避免频率限制）
+
+  // ==================== LLM 答题（可选） ====================
+  "llmApiKey": ""                  // 智谱 AI API Key，用于曲风/情绪标签审核。在 https://open.bigmodel.cn 免费获取
 }
 ```
 
@@ -171,7 +200,7 @@ Cookie 过期时，编辑 `config.json` 替换新的 `MUSIC_U` 值即可。也�
 163music-vip-daily/
 ├── auto_tasks_enhanced.js   # 主任务脚本
 ├── task-runner.js            # 任务执行器（公共模块）
-├── api-extras/               # SDK 扩展模块（听歌打卡等）
+├── api-extras/               # SDK 扩展模块（听歌打卡、云小编等）
 ├── ecosystem.config.js       # PM2 定时配置
 ├── config.json               # 用户配置（不提交到 git）
 ├── config_example.json       # 配置模板

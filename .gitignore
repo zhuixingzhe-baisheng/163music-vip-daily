@@ -18,3 +18,6 @@ logs.json
 # 用户数据文件（包含敏感信息）
 user_data.json
 
+# 测试脚本（包含敏感信息）
+test_cloud_editor.js
+

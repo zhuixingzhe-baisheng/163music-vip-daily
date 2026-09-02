@@ -48,11 +48,17 @@ const {
   rep_ugc_user_get,
   rep_ugc_user_sign,
   rep_ugc_user_vip,
+  rep_ugc_activity_get,
+  rep_ugc_activity_collect,
+  thinktank_audit_resource_detail,
+  thinktank_audit_resource_update,
+  middle_play_lottery_remain_chance,
+  middle_play_do_lottery,
+  // 云小编入站考试 API（审核任务前置条件）
   rep_ugc_exam_info_get,
   rep_ugc_exam_start,
   rep_ugc_exam_question_single_get,
-  rep_ugc_exam_submit,
-  rep_ugc_exam_result_get
+  rep_ugc_exam_submit
 } = require('@neteasecloudmusicapienhanced/api')
 
 // 带连字符的函数名需要单独获取
@@ -97,7 +103,10 @@ function loadConfigFromEnv() {
     postPlaylistId: 8402996200,
     postSongCount: 1,
     enableCloudEditor: true,
-    enableCloudEditorExam: true,
+    enableCloudEditorTask: true,
+    enableCloudEditorLottery: false,
+    cloudEditorTaskCount: 10,
+    llmApiKey: configData.llmApiKey || '',
     serverSendKey: serverSendKey || '',
     pushPlusToken: pushPlusToken || '',
     pushPlusChannel: pushPlusChannel,
@@ -147,7 +156,9 @@ if (!config) {
       postSongCount: configData.postSongCount || 1,
       // 云小编配置
       enableCloudEditor: configData.enableCloudEditor !== false,
-      enableCloudEditorExam: configData.enableCloudEditorExam !== false,
+      enableCloudEditorTask: configData.enableCloudEditorTask !== false,
+      enableCloudEditorLottery: configData.enableCloudEditorLottery === true,
+      cloudEditorTaskCount: configData.cloudEditorTaskCount || 10,
       // 推送配置
       serverSendKey: configData.serverSendKey || '',
       pushPlusToken: configData.pushplusToken || '',
@@ -1059,84 +1070,128 @@ async function runCloudEditorTasks(cookie, nickname) {
 
   await sleep(1000)
 
-  // 2. 获取用户详情
+  // 2. 获取活动信息
+  let activityId = '5001'
+  try {
+    const actRes = await rep_ugc_activity_get({ cookie })
+    if (actRes.body.code === 200 && actRes.body.data?.activityId) {
+      activityId = String(actRes.body.data.activityId)
+    }
+  } catch (e) {}
+
+  // 3. 获取用户详情
   let userPoints = 0
   try {
     const userRes = await rep_ugc_user_get({ cookie })
     if (userRes.body.code === 200) {
-      userPoints = userRes.body.data?.points || userRes.body.data?.contribution || 0
+      userPoints = userRes.body.data?.availablePoints ?? 0
       console.log(`  ℹ️ 当前积分：${userPoints}`)
     }
   } catch (e) {
     console.log(`  ℹ️ 获取用户详情失败：${e.message}`)
   }
 
-  // 3. 完成审核任务（考试）- 如果积分不足50则做任务
-  if (userPoints < 50 && config.enableCloudEditorExam !== false) {
-    console.log(`  📝 积分不足50，开始完成审核任务...`)
-    const examTypes = [
-      'musicalStyleEnter',  // 歌曲曲风审核
-      'languageEnter',      // 歌曲语种审核
-      'oriSingerEnter',     // 歌曲原唱审核
-      'emotionEnter'        // 情绪标签审核
+  await sleep(500)
+
+  // 4. 完成审核任务
+  if (config.enableCloudEditorTask !== false) {
+    const taskTypes = [
+      { type: '1', name: '歌曲曲风审核', examType: 'musicalStyleEnter' },
+      { type: '2', name: '歌曲语种审核', examType: 'languageEnter' },
+      { type: '3', name: '歌曲原唱审核', examType: 'oriSingerEnter' },
+      { type: '4', name: '情绪标签审核', examType: 'emotionEnter' }
     ]
+    const maxTasks = config.cloudEditorTaskCount || 10
 
-    for (const examType of examTypes) {
+    for (const { type, name, examType } of taskTypes) {
+      // 4a. 完成入站考试
+      let examPassed = false
       try {
-        // 检查考试状态
-        const infoRes = await rep_ugc_exam_info_get({ cookie, examType })
-        if (infoRes.body.code !== 200) {
-          console.log(`  ⊘ ${examType}：${infoRes.body.message || infoRes.body.code}`)
-          continue
-        }
-
-        const examData = infoRes.body.data
-        const taskId = examData?.taskId || examData?.id
-
-        if (!taskId) {
-          // 没有进行中的任务，开始新任务
-          const startRes = await rep_ugc_exam_start({ cookie, examType })
-          if (startRes.body.code !== 200) {
-            console.log(`  ⊘ 开始${examType}失败：${startRes.body.message || startRes.body.code}`)
-            continue
-          }
-          const newTaskId = startRes.body.data?.taskId || startRes.body.data?.id
-          if (!newTaskId) {
-            console.log(`  ⊘ ${examType}：未获取到 taskId`)
-            continue
-          }
-          await sleep(500)
-          await doExamQuestions(cookie, examType, newTaskId, nickname)
-        } else {
-          // 有进行中的任务，继续答题
-          await doExamQuestions(cookie, examType, taskId, nickname)
-        }
-
-        await sleep(1000)
+        examPassed = await doExamFlow(cookie, examType, name)
       } catch (e) {
-        console.log(`  ✗ ${examType} 异常：${e.message}`)
+        console.log(`  ℹ️ ${name}：考试异常：${e.message}`)
       }
+
+      if (!examPassed) {
+        console.log(`  ⊘ ${name}：未通过入站考试，跳过审核任务`)
+        continue
+      }
+
+      // 4b. 考试通过，开始审核任务
+      let taskCount = 0
+      console.log(`  📝 ${name}：开始审核...`)
+      while (taskCount < maxTasks) {
+        try {
+          const detailRes = await thinktank_audit_resource_detail({ cookie, type })
+          if (detailRes.body.code !== 200) {
+            console.log(`    ⊘ ${name}：${detailRes.body.message || detailRes.body.code}`)
+            break
+          }
+
+          const taskData = detailRes.body.data
+          const taskId = taskData?.taskId
+          if (!taskId) {
+            console.log(`    ℹ️ ${name}：没有更多任务了（完成 ${taskCount} 个）`)
+            break
+          }
+
+          // 随机审核：1=同意, 2=否决
+          const judgement = Math.random() > 0.5 ? '1' : '2'
+          console.log(`    📝 ${name} 第 ${taskCount + 1} 个任务 (taskId: ${taskId})：${judgement === '1' ? '同意' : '否决'}`)
+
+          const updateRes = await thinktank_audit_resource_update({
+            cookie, type, taskId, judgement
+          })
+
+          if (updateRes.body.code === 200) {
+            taskCount++
+            await sleep(1500)
+          } else {
+            console.log(`    ✗ 提交失败：${updateRes.body.message || updateRes.body.code}`)
+            break
+          }
+        } catch (e) {
+          console.log(`    ✗ ${name}异常：${e.message || e}`)
+          break
+        }
+      }
+      if (taskCount > 0) {
+        console.log(`  ✓ ${name}：完成 ${taskCount} 个任务`)
+      }
+      await sleep(500)
     }
 
-    // 重新获取用户积分
+    // 5. 领取任务积分
+    try {
+      const collectRes = await rep_ugc_activity_collect({ cookie, activityId })
+      if (collectRes.body.code === 200) {
+        console.log(`  ✓ 云小编：领取任务积分成功`)
+        runLogs.push('☁️ 云小编：领取任务积分成功')
+      } else {
+        console.log(`  ⊘ 云小编：领取任务积分：${collectRes.body.message || collectRes.body.code}`)
+      }
+    } catch (e) {
+      console.log(`  ✗ 领取任务积分异常：${e.message}`)
+    }
+
+    // 重新获取积分
     try {
       const userRes = await rep_ugc_user_get({ cookie })
       if (userRes.body.code === 200) {
-        userPoints = userRes.body.data?.points || userRes.body.data?.contribution || 0
+        userPoints = userRes.body.data?.availablePoints ?? 0
         console.log(`  ℹ️ 任务完成后积分：${userPoints}`)
       }
     } catch (e) {}
+
+    await sleep(1000)
   }
 
-  await sleep(1000)
-
-  // 4. 领取会员（积分达50可领1日黑胶）
+  // 6. 领取会员（积分达50可领1日黑胶）
   try {
     const vipRes = await rep_ugc_user_vip({ cookie })
     if (vipRes.body.code === 200) {
       const status = vipRes.body.data?.status
       if (status === 10 || status === 20) {
-        // 可领取
         const collectRes = await rep_ugc_user_collect_vip({ cookie, activityId: '5001' })
         if (collectRes.body.code === 200) {
           console.log(`  🎉 云小编：成功领取1日黑胶会员！`)
@@ -1155,63 +1210,388 @@ async function runCloudEditorTasks(cookie, nickname) {
     console.log(`  ✗ 云小编会员领取异常：${e.message}`)
     runLogs.push(`☁️ 云小编：会员领取异常 - ${e.message}`)
   }
+
+  await sleep(1000)
+
+  // 7. 每日抽奖（消耗200积分，每日最多3次）
+  if (config.enableCloudEditorLottery === true) {
+    try {
+      const remainRes = await middle_play_lottery_remain_chance({ cookie })
+      if (remainRes.body.code === 200) {
+        const remainChance = typeof remainRes.body.data === 'number' ? remainRes.body.data : (remainRes.body.data?.remainChance || remainRes.body.data?.chance || 0)
+        console.log(`  🎰 云小编：今日剩余抽奖次数 ${remainChance}`)
+        if (remainChance > 0 && userPoints >= 200) {
+          let drawCount = 0
+          while (drawCount < remainChance && drawCount < 3) {
+            const lotteryRes = await middle_play_do_lottery({ cookie, drawCount: '1' })
+            if (lotteryRes.body.code === 200) {
+              const prize = lotteryRes.body.data?.prizeName || lotteryRes.body.data?.awardName || '未知'
+              console.log(`  🎰 云小编：第 ${drawCount + 1} 次抽奖：${prize}`)
+              runLogs.push(`☁️ 云小编：抽奖获得 ${prize}`)
+              drawCount++
+              await sleep(1000)
+            } else {
+              console.log(`  ✗ 抽奖失败：${lotteryRes.body.message || lotteryRes.body.code}`)
+              break
+            }
+          }
+        } else if (remainChance > 0 && userPoints < 200) {
+          console.log(`  ⊘ 云小编：积分不足（${userPoints}/200），无法抽奖`)
+        }
+      }
+    } catch (e) {
+      console.log(`  ✗ 云小编抽奖异常：${e.message}`)
+    }
+  }
 }
 
-// 完成考试题目
-async function doExamQuestions(cookie, examType, taskId, nickname) {
-  let answeredCount = 0
-  const maxQuestions = 5 // 最多答5题
+// 语种检测：根据歌词和歌手名判断歌曲语种
+function detectLanguage(lyric, artists) {
+  if (!lyric && !artists) return null
 
-  while (answeredCount < maxQuestions) {
+  const cleanLyric = (lyric || '')
+    .replace(/\[[\d:.\]]+\]/g, '')
+    .replace(/\[[^\]]*\]/g, '')
+    .trim()
+
+  const count = (re) => (cleanLyric.match(re) || []).length
+
+  const stats = {
+    hangul: count(/[\uAC00-\uD7AF]/g),
+    hiragana: count(/[\u3040-\u309F]/g),
+    katakana: count(/[\u30A0-\u30FF]/g),
+    cjk: count(/[\u4E00-\u9FFF]/g),
+    cyrillic: count(/[\u0400-\u04FF]/g),
+    thai: count(/[\u0E00-\u0E7F]/g),
+    latin: count(/[a-zA-Z]/g),
+    vietnamese: count(/[ăâđêôơưĂÂĐÊÔƠƯ]/g),
+    portuguese: count(/[ãõçâêôáéíóúÃÕÇÂÊÔÁÉÍÓÚ]/g),
+    spanish: count(/[ñ¿¡áíúóéÑ]/g),
+    french: count(/[éèêàçùûôîœÉÈÊÀÇÙÛÔÎŒ]/g),
+    german: count(/[äöüßÄÖÜ]/g),
+  }
+  const kana = stats.hiragana + stats.katakana
+
+  // 1. 韩文优先
+  if (stats.hangul > 5) return '韩语'
+  // 2. 日文假名
+  if (kana > 5) return '日语'
+  // 3. 西里尔文 → 俄语
+  if (stats.cyrillic > 5) return '俄语'
+  // 4. 泰文
+  if (stats.thai > 5) return '泰语'
+  // 5. 中文字符占优且无韩日文字 → 华语/粤语
+  if (stats.cjk > 10 && stats.cjk > stats.latin) {
+    const cantoneseChars = /[\u55ba\u55f0\u54c1\u5605\u5602\u5622\u5566\u5593\u5511\u563f\u54a6\u563e\u5687\u5497\u5491\u549d\u5510\u559a\u563b\u5638]/
+    if (cantoneseChars.test(cleanLyric)) return '粤语'
+    return '华语'
+  }
+  // 6. 拉丁字母系细分
+  if (stats.latin > 10) {
+    if (stats.vietnamese > 3) return '越南语'
+    if (stats.portuguese > 3 && stats.spanish < 2) return '葡萄牙语'
+    if (stats.spanish > 3) return '西班牙语'
+    if (stats.french > 3) return '法语'
+    if (stats.german > 2) return '德语'
+    return '英语'
+  }
+
+  // 7. 歌手名辅助判断
+  if (artists) {
+    if (/[\uAC00-\uD7AF]/.test(artists)) return '韩语'
+    if (/[\u3040-\u309F\u30A0-\u30FF]/.test(artists)) return '日语'
+    if (/[\u0400-\u04FF]/.test(artists)) return '俄语'
+  }
+
+  return null
+}
+
+// LLM 调用（智谱 GLM-4-Flash）
+async function askLLM(prompt) {
+  const apiKey = config.llmApiKey
+  if (!apiKey) return null
+
+  try {
+    const res = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'glm-4-flash',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.1,
+        max_tokens: 10
+      })
+    })
+    const data = await res.json()
+    const content = data?.choices?.[0]?.message?.content?.trim()
+    return content
+  } catch (e) {
+    console.log(`    ⚠️ LLM 调用失败：${e.message}`)
+    return null
+  }
+}
+
+// LLM 判断曲风/情绪标签
+async function llmJudgeLabel(question, examType) {
+  const { questionContent, artists, lyric, resName } = question
+  const cleanLyric = (lyric || '')
+    .replace(/\[[\d:.\]]+\]/g, '')
+    .replace(/\[[^\]]*\]/g, '')
+    .trim()
+    .substring(0, 500)
+
+  const taskDesc = examType === 'musicalStyleEnter'
+    ? '歌曲风格（曲风）'
+    : '情绪标签'
+
+  let labelDefs = ''
+  if (examType === 'emotionEnter') {
+    labelDefs = `
+网易云情绪标签定义（严格依据此标准判断）：
+- 愤怒：曲风流派为重型金属、垃圾摇滚，节奏偏快约140-150+BPM，嘶哑人声。说唱/嘻哈不属于愤怒。
+- 热血：令人感觉全身血液沸腾、充满力量和勇气。日系动漫/游戏燃曲通常属于热血。节奏感强、激昂的日文歌大概率是热血。
+- 惊悚：令人恐惧害怕，适合恐怖片/鬼屋的氛围音乐。
+- 抑郁：情绪低落、厌恶活动，曲调惯用小调，表达消极无奈。小调歌曲、异域风情旋律。
+- 悲伤：包含悲伤旋律、失恋、爱而不得，引发悲伤情绪。小调、慢板、哀伤歌词。
+- 孤独：歌词表达一个人寂寞独处、与社会隔离疏远的状态。
+- 治愈：温暖、舒适、给人安慰的感觉。
+- 平静：缓慢柔和、轻柔节奏，让人感到宁静放松。
+- 清新：干净利落、色彩鲜艳、简单单纯、甜美阳光，"小清新"风格。
+- 浪漫：柔和旋律、温暖和声、表达爱情或浪漫情感。
+- 抒情：以情感表达为主，旋律优美、情感细腻。
+- 爱情歌词表达对爱情的向往或正在经历爱情的感受。
+- 搞笑：幽默、滑稽、令人发笑。
+- 正能量：积极向上、催人奋进、充满希望。
+- 大气：气势恢宏、磅礴大气。
+- 苦情：通过遗憾与伤痛的歌词，表达爱情挫折、失落等苦情情绪。
+- 洒脱：潇洒自然、不拘束，对感情看开看透、坦白面对。
+- 放松：轻松自在、无压力感。
+
+重要提示：
+1. 日文歌曲如果节奏快、激昂、有动漫感，大概率是"热血"标签，应判A(正确)
+2. 说唱/嘻哈歌曲通常不是"愤怒"，愤怒只限金属/垃圾摇滚
+3. 判断时以歌词内容和歌曲整体氛围为准`
+  } else if (examType === 'musicalStyleEnter') {
+    labelDefs = `
+网易云曲风标签定义：
+- 嘻哈说唱：注重韵律和节奏，以碎拍和采样为主要制作手段
+- 电子：以电子合成器、音乐软件产生的电子声响制作
+- 摇滚：以鼓和贝斯强调节奏，嘶哑人声，吉他失真
+- 民谣：新民谣，简单旋律与格式，歌词选取民生题材
+- 爵士：集体即兴，摇摆律动(Swing)，七和弦基础
+- 蓝调：Blues音阶、12-bar-blues和声进行，shuffle律动
+- 金属：极激烈鼓点(双踩)、严重失真吉他riff、穿透力人声
+- 古典：西方古典音乐，文艺复兴至现代，按时期分类
+- 乡村：融合传统民谣、凯尔特、福音、蓝调，曲调流畅简单
+- 雷鬼：牙买加流行音乐，融合美国节奏布鲁斯
+- 节奏布鲁斯：融合蓝调、爵士、福音，分灵魂乐和放克
+- 二次元：与日本动画、漫画、游戏相关，含同人、虚拟歌姬
+- 国风：中国传统文化元素的流行音乐
+- 中国音乐：中国特色音乐，含民歌、民族器乐、戏曲
+- 原声带：影视游戏作品原声音频（非日本动画游戏）`
+  }
+
+  const prompt = `你是一位专业的网易云音乐审核员。请判断歌曲的${taskDesc}标签是否正确。
+${labelDefs}
+
+歌曲名：${resName}
+歌手：${artists}
+歌词片段：${cleanLyric}
+待审核标签：${questionContent}
+
+请仅回答 A 或 B：
+A = 标签正确（该标签确实符合这首歌）
+B = 标签错误（该标签不符合这首歌）
+
+回答：`
+
+  const result = await askLLM(prompt)
+  if (result && result.startsWith('A')) {
+    console.log(`    🤖 LLM 判断${taskDesc}：${questionContent} → A(对)`)
+    return 'A'
+  } else if (result && result.startsWith('B')) {
+    console.log(`    🤖 LLM 判断${taskDesc}：${questionContent} → B(错)`)
+    return 'B'
+  }
+  console.log(`    🤖 LLM 无有效响应（${result}），随机作答`)
+  return Math.random() > 0.5 ? 'A' : 'B'
+}
+
+// 智能考试答题
+async function smartExamAnswer(question, examType) {
+  const { questionContent, artists, lyric, resName } = question
+
+  if (examType === 'languageEnter') {
+    const detected = detectLanguage(lyric, artists)
+    if (detected) {
+      const match = detected === questionContent
+      console.log(`    🔍 歌词检测语种：${detected}，标签：${questionContent} → ${match ? 'A(对)' : 'B(错)'}`)
+      return match ? 'A' : 'B'
+    }
+    console.log(`    🔍 无法检测语种，随机作答`)
+    return Math.random() > 0.5 ? 'A' : 'B'
+  }
+
+  if (examType === 'oriSingerEnter') {
+    if (artists && questionContent) {
+      const normalize = s => s.toLowerCase().replace(/[\s\u00a0]/g, '')
+      const a = normalize(artists)
+      const q = normalize(questionContent)
+      const match = a.includes(q) || q.includes(a)
+      console.log(`    🔍 歌手：${artists}，标签原唱：${questionContent} → ${match ? 'A(对)' : 'B(错)'}`)
+      return match ? 'A' : 'B'
+    }
+    return Math.random() > 0.5 ? 'A' : 'B'
+  }
+
+  // 曲风/情绪标签使用 LLM 判断
+  if (examType === 'musicalStyleEnter' || examType === 'emotionEnter') {
+    if (config.llmApiKey) {
+      return await llmJudgeLabel(question, examType)
+    }
+    console.log(`    🔍 未配置 LLM API Key，随机作答`)
+    return Math.random() > 0.5 ? 'A' : 'B'
+  }
+
+  return Math.random() > 0.5 ? 'A' : 'B'
+}
+
+// 入站考试完整流程
+async function doExamFlow(cookie, examType, name) {
+  const maxRetries = 3 // 最多重考3次
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    // 1. 检查考试状态
+    const infoRes = await rep_ugc_exam_info_get({ cookie, examType })
+    if (infoRes.body.code !== 200) {
+      console.log(`  ℹ️ ${name}：考试状态查询失败：${infoRes.body.message || infoRes.body.code}`)
+      return false
+    }
+
+    const examData = infoRes.body.data
+    const process = examData?.process
+
+    // 已通过
+    if (examData?.hasPassExamination) {
+      console.log(`  ✓ ${name}：已通过入站考试`)
+      return true
+    }
+
+    // 考试已结束但未通过
+    if (process === 'whole_exam_end') {
+      if (attempt < maxRetries - 1) {
+        console.log(`  📝 ${name}：考试未通过，准备第 ${attempt + 2} 次考试...`)
+        // 查看上次结果
+        if (examData?.taskId) {
+          try {
+            const resultRes = await rep_ugc_exam_result_get({ cookie, examType, taskId: examData.taskId })
+            if (resultRes.body.code === 200) {
+              const r = resultRes.body.data
+              console.log(`    ℹ️ 上次结果：正确 ${r?.wrightNum || '?'} 题，正确率 ${r?.wrightRate || '?'}`)
+            }
+          } catch (e) {}
+        }
+        // 开始新考试
+        const startRes = await rep_ugc_exam_start({ cookie, examType })
+        if (startRes.body.code !== 200) {
+          console.log(`  ⊘ ${name}：开始考试失败：${startRes.body.message || startRes.body.code}`)
+          return false
+        }
+        const taskId = startRes.body.data?.taskId
+        if (!taskId) {
+          console.log(`  ⊘ ${name}：未获取到 taskId`)
+          return false
+        }
+        await sleep(500)
+        await doExamRound(cookie, examType, taskId, name)
+        await sleep(500)
+        continue
+      } else {
+        console.log(`  ⊘ ${name}：考试未通过，已重考 ${maxRetries} 次，请在客户端手动完成`)
+        return false
+      }
+    }
+
+    // 考试进行中或未开始
+    let taskId = examData?.taskId
+    if (!taskId) {
+      // 未开始，启动新考试
+      console.log(`  📝 ${name}：开始入站考试...`)
+      const startRes = await rep_ugc_exam_start({ cookie, examType })
+      if (startRes.body.code !== 200) {
+        console.log(`  ⊘ ${name}：开始考试失败：${startRes.body.message || startRes.body.code}`)
+        return false
+      }
+      taskId = startRes.body.data?.taskId
+      if (!taskId) {
+        console.log(`  ⊘ ${name}：未获取到 taskId`)
+        return false
+      }
+    } else {
+      console.log(`  📝 ${name}：入站考试进行中，继续答题...`)
+    }
+
+    await sleep(500)
+    await doExamRound(cookie, examType, taskId, name)
+    await sleep(500)
+  }
+
+  // 最终检查
+  const finalRes = await rep_ugc_exam_info_get({ cookie, examType })
+  if (finalRes.body.code === 200 && finalRes.body.data?.hasPassExamination) {
+    console.log(`  ✓ ${name}：入站考试通过`)
+    return true
+  }
+  return false
+}
+
+// 一轮考试答题
+async function doExamRound(cookie, examType, taskId, name) {
+  let answeredCount = 0
+
+  while (true) {
     try {
-      // 获取题目
       const questionRes = await rep_ugc_exam_question_single_get({ cookie, examType, taskId })
       if (questionRes.body.code !== 200) {
-        console.log(`    ⊘ 获取题目失败：${questionRes.body.message || questionRes.body.code}`)
         break
       }
 
       const question = questionRes.body.data
       if (!question?.questionId) {
-        // 没有更多题目了
         break
       }
 
-      // 随机选择答案（A对/B错）
-      const answer = Math.random() > 0.5 ? 'A' : 'B'
-      console.log(`    📝 答题 ${answeredCount + 1}：${answer}`)
+      // 智能答题
+      const answer = await smartExamAnswer(question, examType)
+      console.log(`    📝 ${name} 第 ${answeredCount + 1} 题：${answer === 'A' ? '对' : '错'} (${question.resName} - ${question.artists})`)
 
-      // 提交答案
       const submitRes = await rep_ugc_exam_submit({
-        cookie,
-        examType,
-        taskId,
-        questionId: question.questionId,
-        answer
+        cookie, examType, taskId,
+        questionId: question.questionId, answer
       })
 
       if (submitRes.body.code === 200) {
+        const correct = submitRes.body.data?.result
+        if (correct === true) {
+          console.log(`    ✅ 答对`)
+        } else if (correct === false) {
+          console.log(`    ❌ 答错：${(submitRes.body.data?.analysis || '').substring(0, 80)}`)
+        }
         answeredCount++
         await sleep(800)
       } else {
-        console.log(`    ✗ 提交失败：${submitRes.body.message || submitRes.body.code}`)
         break
       }
     } catch (e) {
-      console.log(`    ✗ 答题异常：${e.message}`)
       break
     }
   }
 
-  // 获取考试结果
   if (answeredCount > 0) {
-    try {
-      const resultRes = await rep_ugc_exam_result_get({ cookie, examType, taskId })
-      if (resultRes.body.code === 200) {
-        const result = resultRes.body.data
-        console.log(`  ✓ ${examType} 完成，答对 ${result?.correctCount || '?'}/${answeredCount} 题`)
-      }
-    } catch (e) {}
+    console.log(`    ℹ️ ${name}：本轮答完 ${answeredCount} 题`)
   }
 }
 

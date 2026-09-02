@@ -171,6 +171,7 @@ if (!config) {
       enableCloudEditorTask: configData.enableCloudEditorTask !== false,
       enableCloudEditorLottery: configData.enableCloudEditorLottery === true,
       cloudEditorTaskCount: configData.cloudEditorTaskCount || 10,
+      llmApiKey: configData.llmApiKey || '',
       // 推送配置
       serverSendKey: configData.serverSendKey || '',
       pushPlusToken: configData.pushplusToken || '',

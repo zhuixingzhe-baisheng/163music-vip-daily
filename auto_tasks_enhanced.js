@@ -1247,9 +1247,16 @@ async function runCloudEditorTasks(cookie, nickname) {
             break
           }
 
-          // 随机审核：1=同意, 2=否决
-          const judgement = Math.random() > 0.5 ? '1' : '2'
-          console.log(`    📝 ${name} 第 ${taskCount + 1} 个任务 (taskId: ${taskId})：${judgement === '1' ? '同意' : '否决'}`)
+          // 智能审核：用 smartExamAnswer 判断标签是否正确
+          const question = {
+            questionContent: taskData.initResult,
+            artists: taskData.artists,
+            lyric: taskData.lyric,
+            resName: taskData.resName
+          }
+          const answer = await smartExamAnswer(question, examType)
+          const judgement = answer === 'A' ? '1' : '2'
+          console.log(`    📝 ${name} 第 ${taskCount + 1} 个任务：${taskData.resName} - ${taskData.artists} | 标签"${taskData.initResult}" → ${judgement === '1' ? '同意' : '否决'}`)
 
           const updateRes = await thinktank_audit_resource_update({
             cookie, type, taskId, judgement

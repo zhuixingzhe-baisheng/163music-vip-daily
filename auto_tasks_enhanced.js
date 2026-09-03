@@ -1747,6 +1747,22 @@ async function runWithPush() {
     runLogs.push(`❌ 执行失败：${errorMsg}`)
   }
   
+  // 写入日志文件
+  try {
+    const logsDir = path.join(__dirname, 'logs')
+    if (!fs.existsSync(logsDir)) {
+      fs.mkdirSync(logsDir, { recursive: true })
+    }
+    const now = new Date()
+    const dateStr = now.toISOString().slice(0, 10) // YYYY-MM-DD
+    const logPath = path.join(logsDir, `${dateStr}.txt`)
+    const content = runLogs.join('\n') + '\n\n执行时间：' + now.toLocaleString('zh-CN') + '\n' + '='.repeat(60) + '\n\n'
+    fs.appendFileSync(logPath, content, 'utf8')
+    console.log(`日志已写入：${logPath}`)
+  } catch (e) {
+    console.error(`写入日志文件失败：${e.message}`)
+  }
+
   // 推送通知（发送运行日志）
   const title = '网易云音乐任务执行报告'
   const content = runLogs.join('\n') + '\n\n执行时间：' + new Date().toLocaleString('zh-CN')

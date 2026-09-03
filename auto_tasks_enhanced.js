@@ -45,7 +45,19 @@ const {
   vip_growthpoint_getall,
   vip_tasks_v1,
   event_del,
-  share_resource,
+} = require('@neteasecloudmusicapienhanced/api')
+
+// 分享歌曲到动态（使用 weapi 加密，避免 xeapi v3 风控 250 错误）
+async function share_resource_safe({ cookie, type = 'song', id, msg = '' }) {
+  const request = require('@neteasecloudmusicapienhanced/api/util/request.js')
+  return request(
+    `/api/share/friends/resource`,
+    { type, msg, id },
+    { cookie, crypto: 'weapi' }
+  )
+}
+
+const {
   playlist_detail,
   song_like,
   like,
@@ -1126,7 +1138,7 @@ async function autoPostEvent(cookie, nickname) {
 
     // 发布动态
     console.log(`  发布动态...`)
-    const postResult = await share_resource({
+    const postResult = await share_resource_safe({
       cookie,
       type: 'song',
       id: songId,
@@ -1155,8 +1167,9 @@ async function autoPostEvent(cookie, nickname) {
 
     await sleep(1500)
   } catch (e) {
-    console.log(`  ✗ 发布异常：${e.message}`)
-    runLogs.push(`📝 自动动态：异常 - ${e.message}`)
+    const errMsg = e.body?.message || e.message || String(e)
+    console.log(`  ✗ 发布异常：${errMsg}`)
+    runLogs.push(`📝 自动动态：异常 - ${errMsg}`)
   }
 
   saveUserData(userData)
